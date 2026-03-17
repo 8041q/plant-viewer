@@ -28,7 +28,7 @@ function Modal({ open, onClose, data }) {
             </div>
 
             <div className="pv-room-list">
-              <h3>Rooms</h3>
+              <h3>Also in:</h3>
               <ul>
                 {(data.rooms && data.rooms.length) ? (
                   data.rooms.map(r => <li key={r} className="pv-room-item">{r}</li>)
@@ -39,7 +39,7 @@ function Modal({ open, onClose, data }) {
             </div>
 
             <div className="pv-product-list">
-              <h3>Products</h3>
+              <h3>Included</h3>
               <ul>
                 {(data.products && data.products.length) ? (
                   data.products.map((p, i) => (
@@ -300,6 +300,7 @@ export default function App() {
   }
 
   function onPointerUp(e) {
+    if (!draggingRef.current) return
     setDragging(false)
     draggingRef.current = false
     try { containerRef.current.releasePointerCapture && containerRef.current.releasePointerCapture(e.pointerId) } catch (err) {}
@@ -351,7 +352,7 @@ export default function App() {
             <image href={IMAGE_PATH} x={0} y={0} width={viewSize.w} height={viewSize.h} preserveAspectRatio="xMidYMid meet" />
 
             {hotspots.map(h => (
-              <g key={h.id} transform={`translate(${h.x}, ${h.y}) scale(${1 / scale})`} className="pv-hotspot-group">
+                <g key={h.id} transform={`translate(${h.x * viewSize.w / 100}, ${h.y * viewSize.h / 100}) scale(${1 / scale})`} className="pv-hotspot-group">
                 <title>{h.title}</title>
 
                     <rect

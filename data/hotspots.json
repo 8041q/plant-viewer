@@ -1,11 +1,11 @@
 [
   {
-    "id": "bed-101",
-    "title": "Bed 101",
-    "x": 18,
-    "y": 32,
-    "image": "/src/planta.png",
-    "info": "Hospital bed 101 — model X. Notes: oxygen available.",
+    "id": "eco-3",
+    "title": "Ecografia",
+    "x": 27,
+    "y": 62,
+    "image": "/src/c8c.jpg",
+    "info": "Ecografia 3 — model X. Notes: oxygen available.",
     "rooms": ["A1", "A2", "3BC"],
     "products": [
       { "id": "p-001", "name": "Comfort Mattress", "variant": "Standard" },
@@ -13,16 +13,26 @@
     ]
   },
   {
-    "id": "bed-102",
-    "title": "Bed 102",
-    "x": 36,
-    "y": 28,
-    "image": "/src/planta.png",
-    "info": "Hospital bed 102 — model Y. Notes: ventilator present.",
+    "id": "ginasio",
+    "title": "Ginásio",
+    "x": 40,
+    "y": 25,
+    "image": "/src/z7z.jpg",
+    "info": "Ginásio — model Y. Notes: ventilator present.",
     "rooms": ["6LD", "B2"],
     "products": [
       { "id": "p-011", "name": "Pressure Relief Mattress", "variant": "Pro" },
       { "id": "p-012", "name": "Bedside Table", "variant": "Oak" }
     ]
+  },
+  {
+    "id": "test-1",
+    "title": "test",
+    "x": 70,
+    "y": 70,
+    "image": "/src/z7z.jpg",
+    "info": "teste — model viewer.",
+    "rooms": [""],
+    "products": [""]
   }
 ]
