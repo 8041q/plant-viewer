@@ -73,8 +73,19 @@ export default function App() {
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
+  const draggingRef = useRef(false)
   const scaleRef = useRef(scale)
   const translateRef = useRef(translate)
+  // Smooth animation / inertia configs and refs
+  const SMOOTHING = 0.14
+  const INERTIA_MULT = 200
+  const MIN_SCALE = 1
+  const MAX_SCALE = 3
+  const targetScaleRef = useRef(scaleRef.current)
+  const targetTranslateRef = useRef(translateRef.current)
+  const rafRef = useRef(null)
+  const lastMoveRef = useRef({ x: 0, y: 0, t: 0 })
+  const velocityRef = useRef({ x: 0, y: 0 })
 
   // viewSize: width and height in viewBox units. default to 100x100 for safety.
   const [viewSize, setViewSize] = useState({ w: 100, h: 100 })
@@ -128,6 +139,61 @@ export default function App() {
     translateRef.current = translate
   }, [translate])
 
+  // Smooth animator helpers
+  function lerp(a, b, t) { return a + (b - a) * t }
+
+  function setTargetScaleTranslate(nextScale, nextTranslate) {
+    targetScaleRef.current = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale))
+    targetTranslateRef.current = nextTranslate
+    startSmoothAnimation()
+  }
+
+  function startSmoothAnimation() {
+    if (rafRef.current) return
+    let last = performance.now()
+    function tick(now) {
+      // If user started dragging, stop the smooth animator so pointer
+      // interactions take immediate effect.
+      if (draggingRef.current) {
+        rafRef.current = null
+        return
+      }
+      const dt = Math.min((now - last) / 16.6667, 4)
+      last = now
+
+      const t = 1 - Math.pow(1 - SMOOTHING, dt)
+
+      const curS = scaleRef.current
+      const tgtS = targetScaleRef.current
+      const newS = lerp(curS, tgtS, t)
+
+      const curT = translateRef.current
+      const tgtT = targetTranslateRef.current
+      const newTx = lerp(curT.x, tgtT.x, t)
+      const newTy = lerp(curT.y, tgtT.y, t)
+
+      scaleRef.current = newS
+      translateRef.current = { x: newTx, y: newTy }
+      setScale(newS)
+      setTranslate(translateRef.current)
+
+      const closeEnoughScale = Math.abs(newS - tgtS) < 0.0005
+      const closeEnoughTranslate = Math.hypot(newTx - tgtT.x, newTy - tgtT.y) < 0.5
+
+      if (closeEnoughScale && closeEnoughTranslate) {
+        rafRef.current = null
+        return
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }
+
+  // cleanup RAF on unmount
+  useEffect(() => {
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [])
+
   useEffect(() => {
     function onKey(e) {
       // reset transforms on Escape
@@ -164,18 +230,17 @@ export default function App() {
 
         const s = scaleRef.current
         const t = translateRef.current
-        const newScale = Math.max(1, Math.min(s * zoomFactor, 3))
+        const targetS = Math.max(MIN_SCALE, Math.min(s * zoomFactor, MAX_SCALE))
 
         // world point under cursor (in view units)
         const worldX = (cursorUnitsX - t.x) / s
         const worldY = (cursorUnitsY - t.y) / s
 
-        const newTx = cursorUnitsX - worldX * newScale
-        const newTy = cursorUnitsY - worldY * newScale
+        const targetTx = cursorUnitsX - worldX * targetS
+        const targetTy = cursorUnitsY - worldY * targetS
 
-        const clamped = clampTranslate(newScale, newTx, newTy)
-        setScale(newScale)
-        setTranslate(clamped)
+        const clamped = clampTranslate(targetS, targetTx, targetTy)
+        setTargetScaleTranslate(targetS, clamped)
       }
 
       el.addEventListener('wheel', nativeWheel, { passive: false })
@@ -196,30 +261,59 @@ export default function App() {
     } catch (err) {}
 
     setDragging(true)
+    draggingRef.current = true
+    // If a smooth animation is running, cancel it so the user can take
+    // immediate control via pointer movements.
+    try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (err) {}
     dragStartRef.current = { x: e.clientX, y: e.clientY }
+    // initialize velocity tracking
+    lastMoveRef.current = { x: e.clientX, y: e.clientY, t: performance.now() }
+    velocityRef.current = { x: 0, y: 0 }
     try { containerRef.current.setPointerCapture && containerRef.current.setPointerCapture(e.pointerId) } catch (err) {}
   }
 
   function onPointerMove(e) {
-    if (!dragging || !containerRef.current) return
+    if (!draggingRef.current || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.x
     const dy = e.clientY - dragStartRef.current.y
     const dxUnits = (dx * viewSize.w) / rect.width
     const dyUnits = (dy * viewSize.h) / rect.height
- 
-    setTranslate(t => {
-        const newX = t.x + dxUnits
-        const newY = t.y + dyUnits
-        const s = scaleRef.current
-        return clampTranslate(s, newX, newY)
-    })
+
+    // compute new translate immediately and write to ref so the RAF
+    // animation won't (re)apply an older value.
+    const s = scaleRef.current
+    const newX = translateRef.current.x + dxUnits
+    const newY = translateRef.current.y + dyUnits
+    const clamped = clampTranslate(s, newX, newY)
+    translateRef.current = clamped
+    setTranslate(clamped)
+    // update velocity estimate (pixels per ms converted to view units per ms)
+    const now = performance.now()
+    const dt = Math.max(1, now - (lastMoveRef.current.t || now))
+    velocityRef.current = {
+      x: ((e.clientX - lastMoveRef.current.x) * viewSize.w) / (rect.width * dt),
+      y: ((e.clientY - lastMoveRef.current.y) * viewSize.h) / (rect.height * dt),
+    }
+    lastMoveRef.current = { x: e.clientX, y: e.clientY, t: now }
     dragStartRef.current = { x: e.clientX, y: e.clientY }
   }
 
   function onPointerUp(e) {
     setDragging(false)
+    draggingRef.current = false
     try { containerRef.current.releasePointerCapture && containerRef.current.releasePointerCapture(e.pointerId) } catch (err) {}
+    // apply inertia based on last velocity
+    const v = velocityRef.current
+    const speed = Math.hypot(v.x, v.y)
+    if (speed > 0.002) {
+      const inertiaTarget = {
+        x: translateRef.current.x + v.x * INERTIA_MULT,
+        y: translateRef.current.y + v.y * INERTIA_MULT,
+      }
+      const clamped = clampTranslate(scaleRef.current, inertiaTarget.x, inertiaTarget.y)
+      setTargetScaleTranslate(scaleRef.current, clamped)
+    }
   }
 
   function clampTranslate(s, tx, ty) {

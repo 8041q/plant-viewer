@@ -110,3 +110,6 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   opacity: 1;
 }
 
+/* GPU hint for smoother transform animations */
+.pv-image-wrap, .pv-overlay { will-change: transform; }
+
