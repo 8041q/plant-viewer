@@ -159,12 +159,12 @@ export default function App() {
         if (e.deltaMode === 1) delta *= 16
         else if (e.deltaMode === 2) delta *= 800
 
-        const ZOOM_SENSITIVITY = 0.0005
+        const ZOOM_SENSITIVITY = 0.0010
         const zoomFactor = Math.exp(-delta * ZOOM_SENSITIVITY)
 
         const s = scaleRef.current
         const t = translateRef.current
-        const newScale = Math.max(1, Math.min(s * zoomFactor, 2))
+        const newScale = Math.max(1, Math.min(s * zoomFactor, 3))
 
         // world point under cursor (in view units)
         const worldX = (cursorUnitsX - t.x) / s
@@ -208,35 +208,11 @@ export default function App() {
     const dxUnits = (dx * viewSize.w) / rect.width
     const dyUnits = (dy * viewSize.h) / rect.height
  
-    // How many view units the user can drag past the image edge
-    const OVERSCROLL = 0
- 
     setTranslate(t => {
-      const newX = t.x + dxUnits
-      const newY = t.y + dyUnits
-      const s = scaleRef.current
- 
-      let minX, maxX, minY, maxY
-      if (s >= 1) {
-        // zoomed in: normal clamp edges + overscroll buffer
-        minX = viewSize.w * (1 - s) - OVERSCROLL
-        maxX = OVERSCROLL
-        minY = viewSize.h * (1 - s) - OVERSCROLL
-        maxY = OVERSCROLL
-      } else {
-        // zoomed out: image is centered; allow a small nudge either way
-        const centerX = (viewSize.w - viewSize.w * s) / 2
-        const centerY = (viewSize.h - viewSize.h * s) / 2
-        minX = centerX - OVERSCROLL
-        maxX = centerX + OVERSCROLL
-        minY = centerY - OVERSCROLL
-        maxY = centerY + OVERSCROLL
-      }
- 
-      return {
-        x: Math.max(minX, Math.min(newX, maxX)),
-        y: Math.max(minY, Math.min(newY, maxY)),
-      }
+        const newX = t.x + dxUnits
+        const newY = t.y + dyUnits
+        const s = scaleRef.current
+        return clampTranslate(s, newX, newY)
     })
     dragStartRef.current = { x: e.clientX, y: e.clientY }
   }
@@ -286,8 +262,8 @@ export default function App() {
 
                     <rect
                       className="pv-pill"
-                      x={-1.8} y={-1.25}
-                      width={12} height={2.5}
+                      x={-1.8} y={-1.3}
+                      width={12} height={2.6}
                       rx={1.2} ry={2}
                       fill="transparent"
                       opacity={0}
@@ -295,9 +271,9 @@ export default function App() {
 
                 <circle
                   className="pv-hotspot"
-                  r={0.8}
+                  r={0.9}
                   fill="#3dc99a"
-                  stroke="#fff"
+                  stroke="#f5f5f5"
                   strokeWidth={0.2}
                   onClick={() => setSelected(h)}
                   style={{ cursor: 'pointer' }}
@@ -306,7 +282,7 @@ export default function App() {
                 <text
                   className="pv-label"
                   x={2} y={0.1}
-                  fontSize={1.3}
+                  fontSize={1.4}
                   fill="#000"
                   textAnchor="start"
                   dominantBaseline="middle"
