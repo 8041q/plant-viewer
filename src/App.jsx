@@ -123,7 +123,7 @@ export default function App() {
 
         const s = scaleRef.current
         const t = translateRef.current
-        const newScale = Math.max(0.65, Math.min(s * zoomFactor, 2))
+        const newScale = Math.max(1, Math.min(s * zoomFactor, 2))
 
         // world point under cursor (in viewBox units)
         const worldX = (cursorUnitsX - t.x) / s
@@ -230,9 +230,9 @@ export default function App() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <svg className="pv-overlay" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+        <svg className="pv-overlay" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
           <g transform={`translate(${translate.x}, ${translate.y}) scale(${scale})`}>
-            <image href={IMAGE_PATH} x={0} y={0} width={100} height={100} preserveAspectRatio="xMidYMid slice" />
+            <image href={IMAGE_PATH} x={0} y={0} width={100} height={100} preserveAspectRatio="xMidYMid meet" />
 
             {hotspots.map(h => (
               <g key={h.id} transform={`translate(${h.x}, ${h.y}) scale(${1 / scale})`} className="pv-hotspot-group">
