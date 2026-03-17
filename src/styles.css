@@ -66,7 +66,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   transform-box: fill-box;
   transform-origin: center;
 }
-.pv-overlay .pv-hotspot:hover {
+.pv-overlay g:hover .pv-hotspot {
   transform: scale(1.2);
   fill: #2abf7f;
 }
@@ -77,6 +77,29 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   pointer-events: none;
 }
 .pv-overlay g:hover text {
+  opacity: 1;
+}
+
+/* New/updated rules for hotspot pill + label */
+.pv-overlay g .pv-pill {
+  transition: opacity .14s ease, fill .14s ease;
+  opacity: 0;
+}
+
+.pv-overlay g .pv-label {
+  opacity: 0;
+  transition: opacity .14s ease, fill .14s ease;
+  pointer-events: none;
+  fill: #ffffff; /* high-contrast text color */
+}
+
+/* When hovering the group, show pill and label and keep circle hover effect */
+.pv-overlay g:hover .pv-pill {
+  opacity: 1;
+  fill: #3dc99a; /* pill background color */
+}
+
+.pv-overlay g:hover .pv-label {
   opacity: 1;
 }
 

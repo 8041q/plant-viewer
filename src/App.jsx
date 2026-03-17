@@ -81,8 +81,20 @@ export default function App() {
         <img src={IMAGE_PATH} alt="plant" className="pv-image" />
         <svg className="pv-overlay" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
           {hotspots.map(h => (
-            <g key={h.id} transform={`translate(${h.x}, ${h.y})`}>
+            <g key={h.id} transform={`translate(${h.x}, ${h.y})`} className="pv-hotspot-group">
               <title>{h.title}</title>
+
+              {/* Pill background (hidden by default) */}
+              <rect
+                className="pv-pill"
+                x={-1.8} y={-1.25}
+                width={12} height={2.5}
+                rx={1.2} ry={2}
+                fill="#ffffff"
+                opacity={0}
+              />
+
+              {/* Hotspot circle at origin */}
               <circle
                 className="pv-hotspot"
                 r={0.8}
@@ -92,7 +104,17 @@ export default function App() {
                 onClick={() => setSelected(h)}
                 style={{ cursor: 'pointer' }}
               />
-              <text x={3} y={1.5} fontSize={1.5} fill="#000" pointerEvents="none">{h.title}</text>
+
+              {/* Label text positioned to the right of the circle */}
+              <text
+                className="pv-label"
+                x={2} y={0.1}
+                fontSize={1.3}
+                fill="#000"
+                textAnchor="start"
+                dominantBaseline="middle"
+                pointerEvents="none"
+              >{h.title}</text>
             </g>
           ))}
         </svg>
