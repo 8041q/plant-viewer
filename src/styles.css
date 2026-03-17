@@ -42,12 +42,37 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 .pv-image-wrap.dragging { cursor: grabbing; }
 
 .pv-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:60}
-.pv-modal{background:#fff;padding:18px;border-radius:6px;max-width:1000px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.2);position:relative}
+.pv-modal{
+  background:#fff;
+  padding:18px;
+  border-radius:6px;
+  max-width:1000px;
+  width:100%;
+  box-shadow:0 8px 30px rgba(0,0,0,0.2);
+  position:relative;
+}
 .pv-modal-close{position:absolute;right:6px;top:6px;background:transparent;border:none;font-size:22px}
-.pv-modal-body{display:flex;gap:18px;align-items:flex-start}
-.pv-modal-body img{width:420px;max-width:40%;height:auto;max-height:80vh;object-fit:cover;border:1px solid #e6e6e6;border-radius:6px}
+.pv-modal-body{
+  display:flex;
+  gap:18px;
+  align-items:flex-start;
+}
+.pv-modal-body img{
+  width:420px;
+  max-width:40%;
+  height:auto;
+  max-height:80vh;
+  object-fit:cover;
+  border:1px solid #e6e6e6;
+  border-radius:6px;
+}
 
-.pv-info{flex:1;max-height:80vh;overflow:auto;padding:8px 6px}
+.pv-info{
+  flex:1;
+  max-height:80vh;
+  overflow:auto;
+  padding:8px 6px;
+}
 .pv-modal-title{margin:0 0 8px;font-size:20px}
 .pv-main-info p{margin:4px 0;color:#333}
 
