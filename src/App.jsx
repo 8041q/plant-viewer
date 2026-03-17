@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
+import ModelViewer from './ModelViewer'
 
 const IMAGE_PATH = 'src/planta.svg'
 const HOTSPOTS_JSON = 'data/hotspots.json'
@@ -19,7 +20,11 @@ function Modal({ open, onClose, data }) {
         <button className="pv-modal-close" onClick={onClose} aria-label="Close">×</button>
         <h2 className="pv-modal-title">{data.title}</h2>
         <div className="pv-modal-body">
-          <img src={data.image || IMAGE_PATH} alt={data.title || 'plant'} />
+          {data.model ? (
+            <ModelViewer src={data.model} alt={data.title || 'plant model'} />
+          ) : (
+            <img src={data.image || IMAGE_PATH} alt={data.title || 'plant'} />
+          )}
 
           <div className="pv-info">
             <div className="pv-main-info">
