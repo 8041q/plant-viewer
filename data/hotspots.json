@@ -31,7 +31,7 @@
     "x": 70,
     "y": 70,
     "image": "/src/z7z.jpg",
-    "model": "https://8041q.github.io/modelviewerDEMO/",
+    "model": "https://8041q.github.io/modelviewerDEMO/?hideUI=true#0",
     "info": "teste — model viewer.",
     "rooms": [""],
     "products": [""]
