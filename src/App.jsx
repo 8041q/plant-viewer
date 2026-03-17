@@ -76,8 +76,48 @@ export default function App() {
   const scaleRef = useRef(scale)
   const translateRef = useRef(translate)
 
+  // viewSize: width and height in viewBox units. default to 100x100 for safety.
+  const [viewSize, setViewSize] = useState({ w: 100, h: 100 })
+
   useEffect(() => {
     fetch(HOTSPOTS_JSON).then(r => r.json()).then(setHotspots).catch(() => setHotspots([]))
+  }, [])
+
+  // Fetch the SVG file and parse viewBox or width/height to compute aspect ratio
+  useEffect(() => {
+    let mounted = true
+    fetch(IMAGE_PATH).then(r => r.text()).then(text => {
+      if (!mounted) return
+      try {
+        // Try viewBox first
+        const vbMatch = text.match(/<svg[^>]*viewBox=["']([^"']+)["'][^>]*>/i)
+        if (vbMatch) {
+          const parts = vbMatch[1].trim().split(/\s+/).map(Number)
+          if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+            const w = parts[2]
+            const h = parts[3]
+            setViewSize({ w: 100, h: 100 * (h / w) })
+            return
+          }
+        }
+
+        // Fallback: width/height attributes (numbers, possibly with px)
+        const whMatch = text.match(/<svg[^>]*width=["']([\d.]+)(?:px)?["'][^>]*height=["']([\d.]+)(?:px)?["'][^>]*>/i)
+        if (whMatch) {
+          const wnum = parseFloat(whMatch[1])
+          const hnum = parseFloat(whMatch[2])
+          if (wnum > 0 && hnum > 0) {
+            setViewSize({ w: 100, h: 100 * (hnum / wnum) })
+            return
+          }
+        }
+      } catch (err) {
+        // ignore parse errors and keep defaults
+      }
+    }).catch(() => {
+      // keep defaults on fetch failure
+    })
+    return () => { mounted = false }
   }, [])
 
   useEffect(() => {
@@ -109,8 +149,9 @@ export default function App() {
         const rect = el.getBoundingClientRect()
         const cursorX = e.clientX - rect.left
         const cursorY = e.clientY - rect.top
-        const cursorUnitsX = (cursorX * 100) / rect.width
-        const cursorUnitsY = (cursorY * 100) / rect.height
+        // convert to view units using viewSize
+        const cursorUnitsX = (cursorX * viewSize.w) / rect.width
+        const cursorUnitsY = (cursorY * viewSize.h) / rect.height
 
         // Normalize deltaY according to deltaMode per MDN guidance
         let delta = e.deltaY
@@ -125,7 +166,7 @@ export default function App() {
         const t = translateRef.current
         const newScale = Math.max(1, Math.min(s * zoomFactor, 2))
 
-        // world point under cursor (in viewBox units)
+        // world point under cursor (in view units)
         const worldX = (cursorUnitsX - t.x) / s
         const worldY = (cursorUnitsY - t.y) / s
 
@@ -144,7 +185,8 @@ export default function App() {
       }
     }
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+    // include viewSize so handlers use latest unit scale
+  }, [viewSize])
 
   function onPointerDown(e) {
     if (!containerRef.current) return
@@ -163,11 +205,11 @@ export default function App() {
     const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.x
     const dy = e.clientY - dragStartRef.current.y
-    const dxUnits = (dx * 100) / rect.width
-    const dyUnits = (dy * 100) / rect.height
+    const dxUnits = (dx * viewSize.w) / rect.width
+    const dyUnits = (dy * viewSize.h) / rect.height
  
-    // How many viewBox units the user can drag past the image edge
-    const OVERSCROLL = 15
+    // How many view units the user can drag past the image edge
+    const OVERSCROLL = 0
  
     setTranslate(t => {
       const newX = t.x + dxUnits
@@ -177,17 +219,18 @@ export default function App() {
       let minX, maxX, minY, maxY
       if (s >= 1) {
         // zoomed in: normal clamp edges + overscroll buffer
-        minX = 100 * (1 - s) - OVERSCROLL
+        minX = viewSize.w * (1 - s) - OVERSCROLL
         maxX = OVERSCROLL
-        minY = 100 * (1 - s) - OVERSCROLL
+        minY = viewSize.h * (1 - s) - OVERSCROLL
         maxY = OVERSCROLL
       } else {
         // zoomed out: image is centered; allow a small nudge either way
-        const center = (100 - 100 * s) / 2
-        minX = center - OVERSCROLL
-        maxX = center + OVERSCROLL
-        minY = center - OVERSCROLL
-        maxY = center + OVERSCROLL
+        const centerX = (viewSize.w - viewSize.w * s) / 2
+        const centerY = (viewSize.h - viewSize.h * s) / 2
+        minX = centerX - OVERSCROLL
+        maxX = centerX + OVERSCROLL
+        minY = centerY - OVERSCROLL
+        maxY = centerY + OVERSCROLL
       }
  
       return {
@@ -204,19 +247,22 @@ export default function App() {
   }
 
   function clampTranslate(s, tx, ty) {
-    const min = 100 * (1 - s)
-    const max = 0
+    const minX = viewSize.w * (1 - s)
+    const minY = viewSize.h * (1 - s)
+    const maxX = 0
+    const maxY = 0
 
     if (s >= 1) {
       return {
-        x: Math.max(min, Math.min(tx, max)),
-        y: Math.max(min, Math.min(ty, max)),
+        x: Math.max(minX, Math.min(tx, maxX)),
+        y: Math.max(minY, Math.min(ty, maxY)),
       }
     }
 
-    // center when zoomed out
-    const center = (100 - 100 * s) / 2
-    return { x: center, y: center }
+    // center when zoomed out (separately for x and y)
+    const centerX = (viewSize.w - viewSize.w * s) / 2
+    const centerY = (viewSize.h - viewSize.h * s) / 2
+    return { x: centerX, y: centerY }
   }
 
   return (
@@ -230,9 +276,9 @@ export default function App() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <svg className="pv-overlay" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        <svg className="pv-overlay" viewBox={`0 0 ${viewSize.w} ${viewSize.h}`} preserveAspectRatio="xMidYMid meet">
           <g transform={`translate(${translate.x}, ${translate.y}) scale(${scale})`}>
-            <image href={IMAGE_PATH} x={0} y={0} width={100} height={100} preserveAspectRatio="xMidYMid meet" />
+            <image href={IMAGE_PATH} x={0} y={0} width={viewSize.w} height={viewSize.h} preserveAspectRatio="xMidYMid meet" />
 
             {hotspots.map(h => (
               <g key={h.id} transform={`translate(${h.x}, ${h.y}) scale(${1 / scale})`} className="pv-hotspot-group">
