@@ -147,12 +147,14 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   transition: transform .14s ease, fill .14s ease;
   transform-box: fill-box;
   transform-origin: center;
+  fill: var(--hotspot-color, #3dc99a);
 }
 
 .pv-hotspot-group { pointer-events: auto; }
 .pv-overlay .pv-hotspot-group:hover .pv-hotspot {
   transform: scale(1.2);
-  fill: #2abf7f;
+  /* keep the hotspot color on hover (controlled per-group via CSS var) */
+  fill: var(--hotspot-color, #3dc99a);
 }
 
 .pv-overlay .pv-hotspot-group text {
@@ -181,7 +183,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 /* When hovering the group, show pill and label and keep circle hover effect */
 .pv-overlay .pv-hotspot-group:hover .pv-pill {
   opacity: 1;
-  fill: #3dc99a; /* pill background color */
+  fill: var(--hotspot-color, #3dc99a); /* pill background color uses per-hotspot color */
 }
 .pv-overlay .pv-hotspot-group:hover .pv-label {
   opacity: 1;

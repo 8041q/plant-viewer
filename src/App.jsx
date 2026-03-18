@@ -403,7 +403,12 @@ export default function App() {
             <image href={IMAGE_PATH} x={0} y={0} width={viewSize.w} height={viewSize.h} preserveAspectRatio="xMidYMid meet" />
 
             {hotspots.map(h => (
-                <g key={h.id} transform={`translate(${h.x * viewSize.w / 100}, ${h.y * viewSize.h / 100}) scale(${1 / scale})`} className="pv-hotspot-group">
+                <g
+                  key={h.id}
+                  transform={`translate(${h.x * viewSize.w / 100}, ${h.y * viewSize.h / 100}) scale(${1 / scale})`}
+                  className="pv-hotspot-group"
+                  style={{ ['--hotspot-color']: h.color || '#3dc99a' }}
+                >
                 <title>{h.title}</title>
 
                     <rect
@@ -418,7 +423,6 @@ export default function App() {
                 <circle
                   className="pv-hotspot"
                   r={0.9}
-                  fill="#3dc99a"
                   stroke="#f5f5f5"
                   strokeWidth={0.2}
                   onClick={() => setSelected(h)}
