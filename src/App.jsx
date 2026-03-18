@@ -179,6 +179,7 @@ export default function App() {
   const [scale, setScale] = useState(1)
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
+  const [pinching, setPinching] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
   const draggingRef = useRef(false)
   const scaleRef = useRef(scale)
@@ -202,8 +203,6 @@ export default function App() {
   // ─── Pinch-to-zoom state ─────────────────────────────────────────────────
   // activePointers keeps a Map of pointerId → {x, y} for all active touches
   const activePointersRef = useRef(new Map())
-  // Which pointerId is currently driving the single-finger drag
-  const dragPointerIdRef = useRef(null)
   // Distance between the two touch points at the start of a pinch gesture
   const pinchStartDistRef = useRef(null)
   // Scale at the moment the pinch gesture started
@@ -212,6 +211,8 @@ export default function App() {
   const pinchStartMidRef = useRef(null)
   // Translate at the moment the pinch gesture started
   const pinchStartTranslateRef = useRef(null)
+  // True whenever a drag or pinch is active — hotspots suppress pointer events during gestures
+  const gestureActiveRef = useRef(false)
 
   // viewSize: width and height in viewBox units. default to 100x100 for safety.
   const [viewSize, setViewSize] = useState({ w: 100, h: 100 })
@@ -417,23 +418,28 @@ export default function App() {
 
   function onPointerDown(e) {
     if (!containerRef.current) return
-    // don't start dragging when user clicked a hotspot (let the hotspot handle the event)
-    try {
-      if (e.target && e.target.closest && e.target.closest('.pv-hotspot-group')) return
-    } catch (err) {}
+
+    const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen'
+    const onHotspot = !!(e.target?.closest?.('.pv-hotspot-group'))
+
+    // Mouse on hotspot: let the hotspot's onClick handle it, don't drag
+    if (onHotspot && !isTouch) return
+
+    // Always capture so move/up events keep arriving even when sliding over hotspots
+    try { containerRef.current.setPointerCapture(e.pointerId) } catch (_) {}
 
     // Track this pointer
     activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    try { containerRef.current.setPointerCapture && containerRef.current.setPointerCapture(e.pointerId) } catch (err) {}
+    gestureActiveRef.current = true
 
     const pointers = Array.from(activePointersRef.current.values())
 
     if (pointers.length === 2) {
       // ── Pinch gesture starting ──
-      // Cancel any ongoing drag / inertia
       draggingRef.current = false
       setDragging(false)
-      try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (err) {}
+      setPinching(true)
+      try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (_) {}
 
       const [p1, p2] = pointers
       pinchStartDistRef.current = Math.hypot(p2.x - p1.x, p2.y - p1.y)
@@ -444,57 +450,49 @@ export default function App() {
     }
 
     // ── Single-pointer drag ──
-    dragPointerIdRef.current = e.pointerId
     setDragging(true)
     draggingRef.current = true
-    try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (err) {}
+    try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (_) {}
     dragStartRef.current = { x: e.clientX, y: e.clientY }
     lastMoveRef.current = { x: e.clientX, y: e.clientY, t: performance.now() }
     velocityRef.current = { x: 0, y: 0 }
   }
 
   function onPointerMove(e) {
-    // Always keep lastPointerRef up to date so zoom buttons use current position
     lastPointerRef.current = { x: e.clientX, y: e.clientY }
 
-    // Update stored position for this pointer
-    if (activePointersRef.current.has(e.pointerId)) {
-      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    }
+    // Only track pointers we know about (i.e. ones that went through onPointerDown)
+    if (!activePointersRef.current.has(e.pointerId)) return
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
-    const pointers = Array.from(activePointersRef.current.values())
+    const entries = Array.from(activePointersRef.current.entries())
 
     // ── Pinch gesture in progress ──
-    if (pointers.length === 2 && pinchStartDistRef.current !== null) {
-      const [p1, p2] = pointers
+    if (entries.length === 2 && pinchStartDistRef.current !== null) {
+      const [[, p1], [, p2]] = entries
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
       const scaleFactor = dist / pinchStartDistRef.current
       const targetS = Math.max(MIN_SCALE, Math.min(pinchStartScaleRef.current * scaleFactor, MAX_SCALE))
 
       const rect = containerRef.current.getBoundingClientRect()
 
-      // Use the LIVE midpoint (not the frozen start midpoint) so the content
-      // also pans as the two fingers move together — eliminates pinch jitter.
-      const liveMidX = (p1.x + p2.x) / 2
-      const liveMidY = (p1.y + p2.y) / 2
-      const cursorX = liveMidX - rect.left
-      const cursorY = liveMidY - rect.top
-      const cursorUnitsX = (cursorX * viewSize.w) / rect.width
-      const cursorUnitsY = (cursorY * viewSize.h) / rect.height
+      // Live midpoint — content pans AND zooms as fingers move together
+      const liveMidX = ((p1.x + p2.x) / 2) - rect.left
+      const liveMidY = ((p1.y + p2.y) / 2) - rect.top
+      const liveMidUX = (liveMidX * viewSize.w) / rect.width
+      const liveMidUY = (liveMidY * viewSize.h) / rect.height
 
+      // World point that was under the pinch-start midpoint (fixed anchor in content space)
       const s0 = pinchStartScaleRef.current
       const t0 = pinchStartTranslateRef.current
-      // World point under the original pinch midpoint (fixed anchor in content space)
-      const startMidX = (pinchStartMidRef.current.x - rect.left)
-      const startMidY = (pinchStartMidRef.current.y - rect.top)
-      const startMidUnitsX = (startMidX * viewSize.w) / rect.width
-      const startMidUnitsY = (startMidY * viewSize.h) / rect.height
-      const worldX = (startMidUnitsX - t0.x) / s0
-      const worldY = (startMidUnitsY - t0.y) / s0
+      const startMidUX = ((pinchStartMidRef.current.x - rect.left) * viewSize.w) / rect.width
+      const startMidUY = ((pinchStartMidRef.current.y - rect.top) * viewSize.h) / rect.height
+      const worldX = (startMidUX - t0.x) / s0
+      const worldY = (startMidUY - t0.y) / s0
 
-      // Pin the content point under the live midpoint
-      const targetTx = cursorUnitsX - worldX * targetS
-      const targetTy = cursorUnitsY - worldY * targetS
+      // Place that world point under the live midpoint
+      const targetTx = liveMidUX - worldX * targetS
+      const targetTy = liveMidUY - worldY * targetS
 
       const clamped = clampTranslate(targetS, targetTx, targetTy)
       scaleRef.current = targetS
@@ -505,11 +503,9 @@ export default function App() {
     }
 
     // ── Single-pointer drag ──
-    // Only process move events from the pointer that started the drag —
-    // on mobile the browser fires move events for every active touch,
-    // so a second finger moving would otherwise corrupt dragStartRef.
+    // Only the first (and only) tracked pointer drives the drag
     if (!draggingRef.current || !containerRef.current) return
-    if (e.pointerId !== dragPointerIdRef.current) return
+    if (entries.length !== 1 || entries[0][0] !== e.pointerId) return
 
     const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.x
@@ -523,6 +519,7 @@ export default function App() {
     const clamped = clampTranslate(s, newX, newY)
     translateRef.current = clamped
     setTranslate(clamped)
+
     const now = performance.now()
     const dt = Math.max(1, now - (lastMoveRef.current.t || now))
     velocityRef.current = {
@@ -534,9 +531,8 @@ export default function App() {
   }
 
   function onPointerUp(e) {
-    // Remove this pointer from the active map
     activePointersRef.current.delete(e.pointerId)
-    try { containerRef.current && containerRef.current.releasePointerCapture && containerRef.current.releasePointerCapture(e.pointerId) } catch (err) {}
+    try { containerRef.current?.releasePointerCapture(e.pointerId) } catch (_) {}
 
     const remaining = activePointersRef.current.size
 
@@ -549,11 +545,11 @@ export default function App() {
     }
 
     if (remaining === 0) {
-      dragPointerIdRef.current = null
+      gestureActiveRef.current = false
+      setPinching(false)
       if (!draggingRef.current) return
       setDragging(false)
       draggingRef.current = false
-      // apply inertia based on last velocity
       const v = velocityRef.current
       const speed = Math.hypot(v.x, v.y)
       if (speed > 0.002) {
@@ -567,7 +563,7 @@ export default function App() {
     } else if (remaining === 1) {
       // One finger lifted during pinch — resume single-pointer drag
       const [[id, ptr]] = Array.from(activePointersRef.current.entries())
-      dragPointerIdRef.current = id
+      try { containerRef.current?.setPointerCapture(id) } catch (_) {}
       setDragging(true)
       draggingRef.current = true
       dragStartRef.current = { x: ptr.x, y: ptr.y }
@@ -643,15 +639,19 @@ export default function App() {
         data-hotspot-id={h.id}
         transform={`translate(${h.x * viewSize.w / 100}, ${h.y * viewSize.h / 100}) scale(${1 / scale})`}
         className="pv-hotspot-group"
-        style={{ '--hotspot-color': h.color || '#3dc99a' }}
+        style={{
+          '--hotspot-color': h.color || '#3dc99a',
+          // During any drag/pinch, make hotspots invisible to pointer events so
+          // fingers sliding over them can't trigger enter/leave/capture and cause jitter
+          pointerEvents: (dragging || pinching) ? 'none' : 'auto',
+        }}
         onPointerEnter={handleHotspotEnter}
         onPointerLeave={handleHotspotLeave}
         onFocus={handleHotspotEnter}
         onBlur={handleHotspotLeave}
-        // Prevent the group from receiving focus on mouse-click so the browser
-        // never renders its default black focus ring. Keyboard focus (Tab/Enter)
-        // is unaffected — onMouseDown only fires for pointer interactions.
-        onMouseDown={e => e.preventDefault()}
+        // Only preventDefault for mouse clicks — doing it on touch cancels pointer
+        // capture on the container and breaks drag tracking
+        onMouseDown={e => { if (e.pointerType !== 'touch' && e.pointerType !== 'pen') e.preventDefault() }}
         tabIndex={0}
       >
         <title>{h.title}</title>
