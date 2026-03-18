@@ -4,7 +4,7 @@
     "title": "Ecografia",
     "x": 27,
     "y": 62,
-    "image": "/src/c8c.jpg",
+    "image": "c8c.jpg",
     "info": "Ecografia 3 — model X. Notes: oxygen available.",
     "rooms": ["A1", "A2", "3BC"],
     "products": [
@@ -17,7 +17,7 @@
     "title": "Ginásio",
     "x": 40,
     "y": 25,
-    "image": "/src/z7z.jpg",
+    "image": "z7z.jpg",
     "info": "Ginásio — model Y. Notes: ventilator present.",
     "rooms": ["6LD", "B2"],
     "products": [
@@ -30,7 +30,7 @@
     "title": "test",
     "x": 70,
     "y": 70,
-    "image": "/src/z7z.jpg",
+    "image": "z7z.jpg",
     "model": "https://8041q.github.io/modelviewerDEMO/?hideUI=true#0",
     "info": "teste — model viewer.",
     "rooms": [""],

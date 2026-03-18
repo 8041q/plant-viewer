@@ -21,9 +21,9 @@ function Modal({ open, onClose, data }) {
         <h2 className="pv-modal-title">{data.title}</h2>
         <div className="pv-modal-body">
           {data.model ? (
-            <ModelViewer src={data.model} alt={data.title || 'plant model'} />
+            <ModelViewer src={`${import.meta.env.BASE_URL}${data.model}`} alt={data.title || 'plant model'} />
           ) : (
-            <img src={data.image || IMAGE_PATH} alt={data.title || 'plant'} />
+            <img src={`${import.meta.env.BASE_URL}${data.image}` || IMAGE_PATH} alt={data.title || 'plant'} />
           )}
 
           <div className="pv-info">
