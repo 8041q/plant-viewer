@@ -110,7 +110,15 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 
 .pv-room-list h3,.pv-product-list h3{margin:12px 0 6px;font-size:14px;color:#555}
 .pv-room-list ul,.pv-product-list ul{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
-.pv-room-item{background:linear-gradient(180deg,#fff,#f7f7f7);padding:6px 10px;border-radius:999px;border:1px solid #e0e0e0;font-size:13px;color:#222}
+.pv-room-item{
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.08);
+  font-size:13px;
+  /* background uses per-item CSS variable set inline */
+  background: linear-gradient(180deg, var(--room-color, #fff), var(--room-color, #f7f7f7));
+  color: inherit; /* text color computed inline for readability */
+}
 .pv-product-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;border:1px solid #f0f0f0;background:#fff;margin-bottom:8px}
 .pv-product-name{font-weight:600;color:#111}
 .pv-product-meta{font-size:12px;color:#666}

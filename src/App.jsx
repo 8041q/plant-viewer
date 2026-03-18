@@ -4,7 +4,7 @@ import ModelViewer from './ModelViewer'
 const IMAGE_PATH = `${import.meta.env.BASE_URL}planta.svg`
 const HOTSPOTS_JSON = `${import.meta.env.BASE_URL}data/hotspots.json`
 
-function Modal({ open, onClose, data }) {
+function Modal({ open, onClose, data, hotspots = [] }) {
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') onClose()
@@ -32,16 +32,50 @@ function Modal({ open, onClose, data }) {
               <p><strong>Info:</strong> {data.info}</p>
             </div>
 
-            <div className="pv-room-list">
-              <h3>Also in:</h3>
-              <ul>
-                {(data.rooms && data.rooms.length) ? (
-                  data.rooms.map(r => <li key={r} className="pv-room-item">{r}</li>)
-                ) : (
-                  ['A1', '3BC', '6LD', 'B2'].map(r => <li key={r} className="pv-room-item">{r}</li>)
-                )}
-              </ul>
-            </div>
+                <div className="pv-room-list">
+                  <h3>Also in:</h3>
+                  <ul>
+                    {(data.rooms && data.rooms.length) ? (
+                      data.rooms.map(r => {
+                        // Try to resolve the room id to a hotspot to get its color
+                        const roomHotspot = hotspots.find(h => h.id === r)
+                        const roomColor = roomHotspot?.color || data.color || '#3dc99a'
+
+                        // simple hex luminance check to pick white or dark text
+                        function readableTextColor(col) {
+                          try {
+                            if (!col || typeof col !== 'string') return '#fff'
+                            let c = col.trim()
+                            if (c[0] === '#') c = c.slice(1)
+                            if (c.length === 3) c = c.split('').map(ch => ch+ch).join('')
+                            if (c.length !== 6) return '#fff'
+                            const r255 = parseInt(c.slice(0,2), 16)
+                            const g255 = parseInt(c.slice(2,4), 16)
+                            const b255 = parseInt(c.slice(4,6), 16)
+                            const lum = (0.2126 * r255 + 0.7152 * g255 + 0.0722 * b255) / 255
+                            return lum > 0.6 ? '#111' : '#fff'
+                          } catch (err) {
+                            return '#fff'
+                          }
+                        }
+
+                        const textColor = readableTextColor(roomColor)
+                        return (
+                          <li
+                            key={r}
+                            className="pv-room-item"
+                            style={{ ['--room-color']: roomColor, color: textColor }}
+                            aria-label={`Related room ${r}`}
+                          >
+                            {r}
+                          </li>
+                        )
+                      })
+                    ) : (
+                      ['A1', '3BC', '6LD', 'B2'].map(r => <li key={r} className="pv-room-item">{r}</li>)
+                    )}
+                  </ul>
+                </div>
 
             <div className="pv-product-list">
               <h3>Included</h3>
@@ -489,7 +523,7 @@ export default function App() {
         </button>
       </div>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} data={selected || {}} />
+      <Modal open={!!selected} onClose={() => setSelected(null)} data={selected || {}} hotspots={hotspots} />
     </div>
   )
 }
