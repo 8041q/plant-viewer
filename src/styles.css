@@ -49,14 +49,14 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   padding: 18px;
   border-radius: 6px;
   max-width: 1200px;
-  max-height: 80vh;
+  max-height: 70vh;
   width: 100%;
   box-shadow: 0 8px 30px rgba(0,0,0,0.2);
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;        /* clips both axes — scrolling handled by children */
-  min-height: 650px;   /* fixed minimum height */
+  min-height: 70vh;   /* fixed minimum height */
 }
 .pv-modal-close{position:absolute;right:6px;top:6px;background:transparent;border:none;font-size:22px}
 .pv-modal-body{
