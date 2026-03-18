@@ -523,6 +523,9 @@ export default function App() {
         </button>
       </div>
 
+      {/* Subtle hint for users who can use Ctrl + scroll to zoom */}
+      <div className="pv-hint" aria-hidden="true">Ctrl + scroll</div>
+
       <Modal open={!!selected} onClose={() => setSelected(null)} data={selected || {}} hotspots={hotspots} />
     </div>
   )
