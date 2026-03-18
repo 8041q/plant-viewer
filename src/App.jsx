@@ -86,11 +86,15 @@ export default function App() {
   const INERTIA_MULT = 200
   const MIN_SCALE = 1
   const MAX_SCALE = 3
+  const ZOOM_STEP = 1.35
   const targetScaleRef = useRef(scaleRef.current)
   const targetTranslateRef = useRef(translateRef.current)
   const rafRef = useRef(null)
   const lastMoveRef = useRef({ x: 0, y: 0, t: 0 })
   const velocityRef = useRef({ x: 0, y: 0 })
+  // Track last pointer position on the container (client coords)
+  // Used by zoom buttons to centre zoom on last interaction point
+  const lastPointerRef = useRef(null)
 
   // viewSize: width and height in viewBox units. default to 100x100 for safety.
   const [viewSize, setViewSize] = useState({ w: 100, h: 100 })
@@ -200,15 +204,6 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    function onKey(e) {
-      // reset transforms on Escape
-      if (e.key === 'Escape') {
-        setScale(1)
-        setTranslate({ x: 0, y: 0 })
-      }
-    }
-    window.addEventListener('keydown', onKey)
-
     // add native non-passive wheel listener to the container so we can call preventDefault()
     const el = containerRef.current
     if (el) {
@@ -251,12 +246,57 @@ export default function App() {
       el.addEventListener('wheel', nativeWheel, { passive: false })
       return () => {
         el.removeEventListener('wheel', nativeWheel, { passive: false })
-        window.removeEventListener('keydown', onKey)
       }
     }
-    return () => window.removeEventListener('keydown', onKey)
     // include viewSize so handlers use latest unit scale
   }, [viewSize])
+
+  // ─── Zoom button helpers ──────────────────────────────────────────────────
+
+  /**
+   * Zoom by `factor` centred on the last recorded pointer position inside the
+   * container.  If no pointer has been tracked yet (e.g. first button click on
+   * a touch-only device) we fall back to the geometric centre of the container.
+   */
+  function zoomAtLastPointer(factor) {
+    const el = containerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+
+    let cursorX, cursorY
+    if (lastPointerRef.current) {
+      // Clamp to container bounds in case pointer left the element
+      cursorX = Math.max(0, Math.min(lastPointerRef.current.x - rect.left, rect.width))
+      cursorY = Math.max(0, Math.min(lastPointerRef.current.y - rect.top, rect.height))
+    } else {
+      // Default: centre of the container
+      cursorX = rect.width / 2
+      cursorY = rect.height / 2
+    }
+
+    const cursorUnitsX = (cursorX * viewSize.w) / rect.width
+    const cursorUnitsY = (cursorY * viewSize.h) / rect.height
+
+    const s = scaleRef.current
+    const t = translateRef.current
+    const targetS = Math.max(MIN_SCALE, Math.min(s * factor, MAX_SCALE))
+
+    // World point under the cursor (view units)
+    const worldX = (cursorUnitsX - t.x) / s
+    const worldY = (cursorUnitsY - t.y) / s
+
+    const targetTx = cursorUnitsX - worldX * targetS
+    const targetTy = cursorUnitsY - worldY * targetS
+
+    const clamped = clampTranslate(targetS, targetTx, targetTy)
+    setTargetScaleTranslate(targetS, clamped)
+  }
+
+  function handleZoomIn()  { zoomAtLastPointer(ZOOM_STEP) }
+  function handleZoomOut() { zoomAtLastPointer(1 / ZOOM_STEP) }
+  function handleReset()   { setTargetScaleTranslate(1, { x: 0, y: 0 }) }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   function onPointerDown(e) {
     if (!containerRef.current) return
@@ -278,6 +318,9 @@ export default function App() {
   }
 
   function onPointerMove(e) {
+    // Always keep lastPointerRef up to date so zoom buttons use current position
+    lastPointerRef.current = { x: e.clientX, y: e.clientY }
+
     if (!draggingRef.current || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.x
@@ -341,6 +384,9 @@ export default function App() {
     return { x: centerX, y: centerY }
   }
 
+  const atMinScale = scale <= MIN_SCALE + 0.01
+  const atMaxScale = scale >= MAX_SCALE - 0.01
+
   return (
     <div className="pv-root">
 
@@ -392,6 +438,51 @@ export default function App() {
             ))}
           </g>
         </svg>
+      </div>
+
+      {/* Zoom controls */}
+      <div className="pv-zoom-controls" aria-label="Map controls">
+        <button
+          className="pv-zoom-btn"
+          onClick={handleZoomIn}
+          disabled={atMaxScale}
+          aria-label="Zoom in"
+          title="Zoom in"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <line x1="8" y1="3" x2="8" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            <line x1="3" y1="8" x2="13" y2="8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+        </button>
+
+        <div className="pv-zoom-divider" aria-hidden="true" />
+
+        <button
+          className="pv-zoom-btn"
+          onClick={handleZoomOut}
+          disabled={atMinScale}
+          aria-label="Zoom out"
+          title="Zoom out"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <line x1="3" y1="8" x2="13" y2="8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+        </button>
+
+        <div className="pv-zoom-divider" aria-hidden="true" />
+
+        <button
+          className="pv-zoom-btn pv-zoom-reset"
+          onClick={handleReset}
+          disabled={atMinScale}
+          aria-label="Reset view"
+          title="Reset view"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 8a5 5 0 1 1 1.5 3.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+            <polyline points="3,5.5 3,8.5 6,8.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </svg>
+        </button>
       </div>
 
       <Modal open={!!selected} onClose={() => setSelected(null)} data={selected || {}} />

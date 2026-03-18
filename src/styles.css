@@ -190,3 +190,60 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 /* GPU hint for smoother transform animations */
 .pv-image-wrap, .pv-overlay { will-change: transform; }
 
+/* ─── Zoom controls ──────────────────────────────────────────────────────── */
+
+.pv-zoom-controls {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e4e8;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  /* Prevent clicks from propagating to the map beneath */
+  pointer-events: auto;
+}
+
+.pv-zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #444;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  /* prevent button clicks from triggering map pointer handlers */
+  touch-action: none;
+}
+
+.pv-zoom-btn:hover:not(:disabled) {
+  background: #f4f5f7;
+  color: #111;
+}
+
+.pv-zoom-btn:active:not(:disabled) {
+  background: #eaebee;
+  color: #3dc99a;
+}
+
+.pv-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Subtle separator between buttons */
+.pv-zoom-divider {
+  width: 22px;
+  height: 1px;
+  background: #e2e4e8;
+  flex-shrink: 0;
+}
