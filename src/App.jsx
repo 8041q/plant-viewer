@@ -188,8 +188,8 @@ export default function App() {
   const translateRef = useRef(translate)
   // Smooth animation / inertia configs and refs
   const SMOOTHING = 0.14
-  const INERTIA_MULT = 200
-  const DRAG_SPEED = 3
+  const INERTIA_MULT = 0
+  const DRAG_SPEED = 2
   const MIN_SCALE = 1
   const MAX_SCALE = 3
   const ZOOM_STEP = 1.35

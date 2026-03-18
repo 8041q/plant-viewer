@@ -16,7 +16,9 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   z-index:0;
 }
 
-.pv-image-wrap { touch-action: none; }
+.pv-image-wrap {
+  touch-action: none;
+}
 
 .pv-image-wrap img.pv-image {
   position:absolute;
@@ -267,7 +269,15 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 }
 
 /* GPU hint for smoother transform animations */
-.pv-image-wrap, .pv-overlay { will-change: transform; }
+.pv-image-wrap, .pv-overlay {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.pv-overlay svg {
+  contain: strict;
+}
 
 /* ─── Focus / active safety ──────────────────────────────────────────────── */
 
