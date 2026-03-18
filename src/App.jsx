@@ -202,6 +202,8 @@ export default function App() {
   // ─── Pinch-to-zoom state ─────────────────────────────────────────────────
   // activePointers keeps a Map of pointerId → {x, y} for all active touches
   const activePointersRef = useRef(new Map())
+  // Which pointerId is currently driving the single-finger drag
+  const dragPointerIdRef = useRef(null)
   // Distance between the two touch points at the start of a pinch gesture
   const pinchStartDistRef = useRef(null)
   // Scale at the moment the pinch gesture started
@@ -442,6 +444,7 @@ export default function App() {
     }
 
     // ── Single-pointer drag ──
+    dragPointerIdRef.current = e.pointerId
     setDragging(true)
     draggingRef.current = true
     try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (err) {}
@@ -468,25 +471,32 @@ export default function App() {
       const scaleFactor = dist / pinchStartDistRef.current
       const targetS = Math.max(MIN_SCALE, Math.min(pinchStartScaleRef.current * scaleFactor, MAX_SCALE))
 
-      // Use the midpoint at pinch-start as the zoom anchor (in container units)
       const rect = containerRef.current.getBoundingClientRect()
-      const mid = pinchStartMidRef.current
-      const cursorX = mid.x - rect.left
-      const cursorY = mid.y - rect.top
+
+      // Use the LIVE midpoint (not the frozen start midpoint) so the content
+      // also pans as the two fingers move together — eliminates pinch jitter.
+      const liveMidX = (p1.x + p2.x) / 2
+      const liveMidY = (p1.y + p2.y) / 2
+      const cursorX = liveMidX - rect.left
+      const cursorY = liveMidY - rect.top
       const cursorUnitsX = (cursorX * viewSize.w) / rect.width
       const cursorUnitsY = (cursorY * viewSize.h) / rect.height
 
       const s0 = pinchStartScaleRef.current
       const t0 = pinchStartTranslateRef.current
-      // world point under the pinch midpoint
-      const worldX = (cursorUnitsX - t0.x) / s0
-      const worldY = (cursorUnitsY - t0.y) / s0
+      // World point under the original pinch midpoint (fixed anchor in content space)
+      const startMidX = (pinchStartMidRef.current.x - rect.left)
+      const startMidY = (pinchStartMidRef.current.y - rect.top)
+      const startMidUnitsX = (startMidX * viewSize.w) / rect.width
+      const startMidUnitsY = (startMidY * viewSize.h) / rect.height
+      const worldX = (startMidUnitsX - t0.x) / s0
+      const worldY = (startMidUnitsY - t0.y) / s0
 
+      // Pin the content point under the live midpoint
       const targetTx = cursorUnitsX - worldX * targetS
       const targetTy = cursorUnitsY - worldY * targetS
 
       const clamped = clampTranslate(targetS, targetTx, targetTy)
-      // Apply immediately (no smooth animation during active gesture for responsiveness)
       scaleRef.current = targetS
       translateRef.current = clamped
       setScale(targetS)
@@ -494,25 +504,25 @@ export default function App() {
       return
     }
 
+    // ── Single-pointer drag ──
+    // Only process move events from the pointer that started the drag —
+    // on mobile the browser fires move events for every active touch,
+    // so a second finger moving would otherwise corrupt dragStartRef.
     if (!draggingRef.current || !containerRef.current) return
+    if (e.pointerId !== dragPointerIdRef.current) return
+
     const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.x
     const dy = e.clientY - dragStartRef.current.y
     const s = scaleRef.current
-    // SVG transform order is translate-then-scale, so tx/ty live in pre-scale
-    // space. Dividing by s means 1 screen-pixel of drag = 1 screen-pixel of
-    // apparent movement at any zoom level.
     const dxUnits = (dx * viewSize.w * DRAG_SPEED) / (rect.width * s)
     const dyUnits = (dy * viewSize.h * DRAG_SPEED) / (rect.height * s)
 
-    // compute new translate immediately and write to ref so the RAF
-    // animation won't (re)apply an older value.
     const newX = translateRef.current.x + dxUnits
     const newY = translateRef.current.y + dyUnits
     const clamped = clampTranslate(s, newX, newY)
     translateRef.current = clamped
     setTranslate(clamped)
-    // update velocity — also in pre-scale units/ms so inertia is consistent
     const now = performance.now()
     const dt = Math.max(1, now - (lastMoveRef.current.t || now))
     velocityRef.current = {
@@ -539,6 +549,7 @@ export default function App() {
     }
 
     if (remaining === 0) {
+      dragPointerIdRef.current = null
       if (!draggingRef.current) return
       setDragging(false)
       draggingRef.current = false
@@ -554,8 +565,9 @@ export default function App() {
         setTargetScaleTranslate(scaleRef.current, clamped)
       }
     } else if (remaining === 1) {
-      // One finger lifted during pinch — resume single-pointer drag from current position
-      const [ptr] = Array.from(activePointersRef.current.values())
+      // One finger lifted during pinch — resume single-pointer drag
+      const [[id, ptr]] = Array.from(activePointersRef.current.entries())
+      dragPointerIdRef.current = id
       setDragging(true)
       draggingRef.current = true
       dragStartRef.current = { x: ptr.x, y: ptr.y }
