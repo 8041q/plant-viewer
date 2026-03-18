@@ -198,6 +198,18 @@ export default function App() {
   // Used by zoom buttons to centre zoom on last interaction point
   const lastPointerRef = useRef(null)
 
+  // ─── Pinch-to-zoom state ─────────────────────────────────────────────────
+  // activePointers keeps a Map of pointerId → {x, y} for all active touches
+  const activePointersRef = useRef(new Map())
+  // Distance between the two touch points at the start of a pinch gesture
+  const pinchStartDistRef = useRef(null)
+  // Scale at the moment the pinch gesture started
+  const pinchStartScaleRef = useRef(null)
+  // Midpoint (in client coords) at the moment the pinch gesture started
+  const pinchStartMidRef = useRef(null)
+  // Translate at the moment the pinch gesture started
+  const pinchStartTranslateRef = useRef(null)
+
   // viewSize: width and height in viewBox units. default to 100x100 for safety.
   const [viewSize, setViewSize] = useState({ w: 100, h: 100 })
 
@@ -407,21 +419,79 @@ export default function App() {
       if (e.target && e.target.closest && e.target.closest('.pv-hotspot-group')) return
     } catch (err) {}
 
+    // Track this pointer
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    try { containerRef.current.setPointerCapture && containerRef.current.setPointerCapture(e.pointerId) } catch (err) {}
+
+    const pointers = Array.from(activePointersRef.current.values())
+
+    if (pointers.length === 2) {
+      // ── Pinch gesture starting ──
+      // Cancel any ongoing drag / inertia
+      draggingRef.current = false
+      setDragging(false)
+      try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (err) {}
+
+      const [p1, p2] = pointers
+      pinchStartDistRef.current = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+      pinchStartScaleRef.current = scaleRef.current
+      pinchStartTranslateRef.current = { ...translateRef.current }
+      pinchStartMidRef.current = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+      return
+    }
+
+    // ── Single-pointer drag ──
     setDragging(true)
     draggingRef.current = true
-    // If a smooth animation is running, cancel it so the user can take
-    // immediate control via pointer movements.
     try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (err) {}
     dragStartRef.current = { x: e.clientX, y: e.clientY }
-    // initialize velocity tracking
     lastMoveRef.current = { x: e.clientX, y: e.clientY, t: performance.now() }
     velocityRef.current = { x: 0, y: 0 }
-    try { containerRef.current.setPointerCapture && containerRef.current.setPointerCapture(e.pointerId) } catch (err) {}
   }
 
   function onPointerMove(e) {
     // Always keep lastPointerRef up to date so zoom buttons use current position
     lastPointerRef.current = { x: e.clientX, y: e.clientY }
+
+    // Update stored position for this pointer
+    if (activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    }
+
+    const pointers = Array.from(activePointersRef.current.values())
+
+    // ── Pinch gesture in progress ──
+    if (pointers.length === 2 && pinchStartDistRef.current !== null) {
+      const [p1, p2] = pointers
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+      const scaleFactor = dist / pinchStartDistRef.current
+      const targetS = Math.max(MIN_SCALE, Math.min(pinchStartScaleRef.current * scaleFactor, MAX_SCALE))
+
+      // Use the midpoint at pinch-start as the zoom anchor (in container units)
+      const rect = containerRef.current.getBoundingClientRect()
+      const mid = pinchStartMidRef.current
+      const cursorX = mid.x - rect.left
+      const cursorY = mid.y - rect.top
+      const cursorUnitsX = (cursorX * viewSize.w) / rect.width
+      const cursorUnitsY = (cursorY * viewSize.h) / rect.height
+
+      const s0 = pinchStartScaleRef.current
+      const t0 = pinchStartTranslateRef.current
+      // world point under the pinch midpoint
+      const worldX = (cursorUnitsX - t0.x) / s0
+      const worldY = (cursorUnitsY - t0.y) / s0
+
+      const targetTx = cursorUnitsX - worldX * targetS
+      const targetTy = cursorUnitsY - worldY * targetS
+
+      const clamped = clampTranslate(targetS, targetTx, targetTy)
+      // Apply immediately (no smooth animation during active gesture for responsiveness)
+      scaleRef.current = targetS
+      translateRef.current = clamped
+      setScale(targetS)
+      setTranslate(clamped)
+      return
+    }
 
     if (!draggingRef.current || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
@@ -450,20 +520,43 @@ export default function App() {
   }
 
   function onPointerUp(e) {
-    if (!draggingRef.current) return
-    setDragging(false)
-    draggingRef.current = false
-    try { containerRef.current.releasePointerCapture && containerRef.current.releasePointerCapture(e.pointerId) } catch (err) {}
-    // apply inertia based on last velocity
-    const v = velocityRef.current
-    const speed = Math.hypot(v.x, v.y)
-    if (speed > 0.002) {
-      const inertiaTarget = {
-        x: translateRef.current.x + v.x * INERTIA_MULT,
-        y: translateRef.current.y + v.y * INERTIA_MULT,
+    // Remove this pointer from the active map
+    activePointersRef.current.delete(e.pointerId)
+    try { containerRef.current && containerRef.current.releasePointerCapture && containerRef.current.releasePointerCapture(e.pointerId) } catch (err) {}
+
+    const remaining = activePointersRef.current.size
+
+    if (remaining < 2) {
+      // Pinch ended — clear pinch state
+      pinchStartDistRef.current = null
+      pinchStartScaleRef.current = null
+      pinchStartMidRef.current = null
+      pinchStartTranslateRef.current = null
+    }
+
+    if (remaining === 0) {
+      if (!draggingRef.current) return
+      setDragging(false)
+      draggingRef.current = false
+      // apply inertia based on last velocity
+      const v = velocityRef.current
+      const speed = Math.hypot(v.x, v.y)
+      if (speed > 0.002) {
+        const inertiaTarget = {
+          x: translateRef.current.x + v.x * INERTIA_MULT,
+          y: translateRef.current.y + v.y * INERTIA_MULT,
+        }
+        const clamped = clampTranslate(scaleRef.current, inertiaTarget.x, inertiaTarget.y)
+        setTargetScaleTranslate(scaleRef.current, clamped)
       }
-      const clamped = clampTranslate(scaleRef.current, inertiaTarget.x, inertiaTarget.y)
-      setTargetScaleTranslate(scaleRef.current, clamped)
+    } else if (remaining === 1) {
+      // One finger lifted during pinch — resume single-pointer drag from current position
+      const [ptr] = Array.from(activePointersRef.current.values())
+      setDragging(true)
+      draggingRef.current = true
+      dragStartRef.current = { x: ptr.x, y: ptr.y }
+      lastMoveRef.current = { x: ptr.x, y: ptr.y, t: performance.now() }
+      velocityRef.current = { x: 0, y: 0 }
     }
   }
 
@@ -669,8 +762,9 @@ export default function App() {
         </button>
       </div>
 
-      {/* Subtle hint for users who can use Ctrl + scroll to zoom */}
-      <div className="pv-hint" aria-hidden="true">Ctrl + scroll</div>
+      {/* Subtle hint — desktop shows Ctrl+scroll, mobile shows pinch */}
+      <div className="pv-hint pv-hint--desktop" aria-hidden="true">Ctrl + scroll</div>
+      <div className="pv-hint pv-hint--mobile"  aria-hidden="true">Pinch to zoom</div>
 
       <Modal open={!!selected} onClose={() => setSelected(null)} data={selected || {}} hotspots={hotspots} />
     </div>

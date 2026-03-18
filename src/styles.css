@@ -348,3 +348,29 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   opacity: 0.7;
   user-select: none;
 }
+
+/* ─── Mobile overrides ───────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Push zoom controls down so they don't overlap a top nav / burger menu.
+     72px gives roughly one standard mobile header height of clearance. */
+  .pv-zoom-controls {
+    top: 72px;
+    left: 16px;
+  }
+
+  /* Move the hint to sit beside the (now lower) controls */
+  .pv-hint {
+    top: 78px;
+    left: 64px;
+    /* Swap the desktop text for a touch-friendly label via content override */
+    font-size: 10px;
+  }
+
+  /* Hide the "Ctrl + scroll" desktop hint on touch devices and replace with
+     a pinch hint written in the JSX via data-mobile-hint (see App.jsx) */
+  .pv-hint--desktop { display: none; }
+  .pv-hint--mobile  { display: block; }
+}
+
+/* Hide mobile hint on non-mobile (desktop default) */
+.pv-hint--mobile { display: none; }
