@@ -107,6 +107,7 @@ function Modal({ open, onClose, data, hotspots = [] }) {
 export default function App() {
   const [hotspots, setHotspots] = useState([])
   const [selected, setSelected] = useState(null)
+  const [hoveredHotspotId, setHoveredHotspotId] = useState(null)
   const containerRef = useRef(null)
   const [scale, setScale] = useState(1)
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
@@ -418,6 +419,109 @@ export default function App() {
     return { x: centerX, y: centerY }
   }
 
+  // Track hovered hotspot id (React state) and size pill after render
+  function handleHotspotEnter(e) {
+    const g = e.currentTarget
+    if (!g) return
+    const id = g.getAttribute && g.getAttribute('data-hotspot-id')
+    setHoveredHotspotId(id)
+
+    // Measure and size the pill after the DOM has updated
+    requestAnimationFrame(() => {
+      try {
+        const text = g.querySelector('.pv-label')
+        const pill = g.querySelector('.pv-pill')
+        if (text && pill) {
+          const textWidth = typeof text.getComputedTextLength === 'function'
+            ? text.getComputedTextLength()
+            : (text.getBBox ? text.getBBox().width : 0)
+          const PADDING = 4
+          const width = textWidth + PADDING * 1.5
+          const pillX = 2 - PADDING
+          pill.setAttribute('width', width)
+          pill.setAttribute('x', pillX)
+          pill.style.transition = 'width .14s ease, x .14s ease, opacity .14s ease'
+        }
+      } catch (err) {}
+    })
+  }
+
+  function handleHotspotLeave(e) {
+    const g = e.currentTarget
+    if (!g) return
+    setHoveredHotspotId(null)
+    try {
+      const pill = g.querySelector('.pv-pill')
+      if (pill) {
+        pill.setAttribute('width', 12)
+        pill.setAttribute('x', -1.8)
+        pill.style.transition = ''
+      }
+    } catch (err) {}
+  }
+
+  function renderHotspot(h) {
+    return (
+      <g
+        key={h.id}
+        data-hotspot-id={h.id}
+        transform={`translate(${h.x * viewSize.w / 100}, ${h.y * viewSize.h / 100}) scale(${1 / scale})`}
+        className="pv-hotspot-group"
+        style={{ '--hotspot-color': h.color || '#3dc99a' }}
+        onPointerEnter={handleHotspotEnter}
+        onPointerLeave={handleHotspotLeave}
+        onFocus={handleHotspotEnter}
+        onBlur={handleHotspotLeave}
+        // Prevent the group from receiving focus on mouse-click so the browser
+        // never renders its default black focus ring. Keyboard focus (Tab/Enter)
+        // is unaffected — onMouseDown only fires for pointer interactions.
+        onMouseDown={e => e.preventDefault()}
+        tabIndex={0}
+      >
+        <title>{h.title}</title>
+
+        <rect
+          className="pv-pill"
+          x={-1.8} y={-1.3}
+          width={12} height={2.6}
+          rx={1.2} ry={2}
+          fill="transparent"
+          opacity={0}
+        />
+
+        <circle
+          className="pv-hotspot"
+          r={0.9}
+          stroke="#f5f5f5"
+          strokeWidth={0.2}
+          onClick={() => onActivateHotspot(h)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivateHotspot(h) } }}
+          role="button"
+          tabIndex={-1}
+          style={{ cursor: 'pointer' }}
+        />
+
+        <text
+          className="pv-label"
+          x={2} y={0.1}
+          fontSize={1.4}
+          fill="#000"
+          textAnchor="start"
+          dominantBaseline="middle"
+          pointerEvents="none"
+        >{h.title}</text>
+      </g>
+    )
+  }
+
+  // Activate hotspot: batch both state updates so React produces a single render —
+  // the modal overlay appears in the same frame as the hover-state teardown,
+  // hiding any transient DOM-reorder artefacts.
+  function onActivateHotspot(h) {
+    setSelected(h)
+    setHoveredHotspotId(null)
+  }
+
   const atMinScale = scale <= MIN_SCALE + 0.01
   const atMaxScale = scale >= MAX_SCALE - 0.01
 
@@ -436,44 +540,19 @@ export default function App() {
           <g transform={`translate(${translate.x}, ${translate.y}) scale(${scale})`}>
             <image href={IMAGE_PATH} x={0} y={0} width={viewSize.w} height={viewSize.h} preserveAspectRatio="xMidYMid meet" />
 
-            {hotspots.map(h => (
-                <g
-                  key={h.id}
-                  transform={`translate(${h.x * viewSize.w / 100}, ${h.y * viewSize.h / 100}) scale(${1 / scale})`}
-                  className="pv-hotspot-group"
-                  style={{ ['--hotspot-color']: h.color || '#3dc99a' }}
-                >
-                <title>{h.title}</title>
-
-                    <rect
-                      className="pv-pill"
-                      x={-1.8} y={-1.3}
-                      width={12} height={2.6}
-                      rx={1.2} ry={2}
-                      fill="transparent"
-                      opacity={0}
-                    />
-
-                <circle
-                  className="pv-hotspot"
-                  r={0.9}
-                  stroke="#f5f5f5"
-                  strokeWidth={0.2}
-                  onClick={() => setSelected(h)}
-                  style={{ cursor: 'pointer' }}
-                />
-
-                <text
-                  className="pv-label"
-                  x={2} y={0.1}
-                  fontSize={1.4}
-                  fill="#000"
-                  textAnchor="start"
-                  dominantBaseline="middle"
-                  pointerEvents="none"
-                >{h.title}</text>
-              </g>
-            ))}
+            {
+              // Render non-hovered hotspots first, then the hovered one last
+              (() => {
+                const normal = hotspots.filter(h => h.id !== hoveredHotspotId)
+                const hovered = hotspots.find(h => h.id === hoveredHotspotId)
+                return (
+                  <>
+                    {normal.map(renderHotspot)}
+                    {hovered ? renderHotspot(hovered) : null}
+                  </>
+                )
+              })()
+            }
           </g>
         </svg>
       </div>

@@ -176,7 +176,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 
 /* New/updated rules for hotspot pill + label */
 .pv-overlay .pv-hotspot-group .pv-pill {
-  transition: opacity .14s ease, fill .14s ease;
+  transition: opacity .14s ease, fill .14s ease, width .14s ease, x .14s ease;
   opacity: 0;
   pointer-events: none; /* don't let invisible pill enlarge hover area */
 }
@@ -199,6 +199,28 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 
 /* GPU hint for smoother transform animations */
 .pv-image-wrap, .pv-overlay { will-change: transform; }
+
+/* ─── Focus / active safety ──────────────────────────────────────────────── */
+
+/* Mouse-click focus: suppress the browser default focus ring (black outline /
+   black overlay that some browsers paint on focused SVG groups).
+   :focus:not(:focus-visible) matches mouse-click focus only — keyboard focus
+   (Tab / Enter) still gets :focus-visible and we give it a styled ring. */
+.pv-overlay .pv-hotspot-group:focus:not(:focus-visible) {
+  outline: none;
+}
+.pv-overlay .pv-hotspot-group:focus-visible {
+  outline: 2px solid var(--hotspot-color, #3dc99a);
+  outline-offset: 2px;
+}
+
+/* Ensure the circle never shows a black fill on :active or :focus — always use
+   the hotspot color so there is no flash when clicking. */
+.pv-overlay .pv-hotspot:active,
+.pv-overlay .pv-hotspot:focus {
+  outline: none;
+  fill: var(--hotspot-color, #3dc99a);
+}
 
 /* ─── Zoom controls ──────────────────────────────────────────────────────── */
 
