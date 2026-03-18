@@ -4,6 +4,110 @@ import ModelViewer from './ModelViewer'
 const IMAGE_PATH = `${import.meta.env.BASE_URL}planta.svg`
 const HOTSPOTS_JSON = `${import.meta.env.BASE_URL}data/hotspots.json`
 
+function readableTextColor(hex) {
+  try {
+    let c = (hex || '').trim().replace('#', '')
+    if (c.length === 3) c = c.split('').map(x => x + x).join('')
+    if (c.length !== 6) return '#111'
+    const r = parseInt(c.slice(0,2),16), g = parseInt(c.slice(2,4),16), b = parseInt(c.slice(4,6),16)
+    return (0.2126*r + 0.7152*g + 0.0722*b)/255 > 0.55 ? '#111' : '#fff'
+  } catch { return '#111' }
+}
+
+function RoomPills({ rooms = [], hotspots = [], dataColor }) {
+  const [expanded,  setExpanded]  = useState(false)
+  const [cutoff,    setCutoff]    = useState(null)   // null = measuring pass (show all)
+  const listRef   = useRef(null)
+  const measuredW = useRef(0)
+  const pending   = useRef(false)
+
+  useEffect(() => {
+    if (expanded) { setCutoff(null); return }
+
+    const ul = listRef.current
+    if (!ul) return
+
+    // Snapshot width immediately so the ResizeObserver initial-fire is ignored
+    measuredW.current = ul.clientWidth
+
+    function measure() {
+      if (pending.current) return
+      pending.current = true
+      requestAnimationFrame(() => {
+        pending.current = false
+        const ul = listRef.current
+        if (!ul) return
+        measuredW.current = ul.clientWidth
+
+        const items = Array.from(ul.querySelectorAll('[data-ri]'))
+        if (!items.length) { setCutoff(rooms.length); return }
+
+        const baseTop = items[0].offsetTop
+        let row1 = items.length
+        for (let i = 1; i < items.length; i++) {
+          if (items[i].offsetTop > baseTop + 4) { row1 = i; break }
+        }
+        // Reserve 1 slot for the "+N more" badge when overflow exists
+        const next = row1 < items.length ? Math.max(1, row1 - 1) : items.length
+        setCutoff(prev => (prev === next ? prev : next))
+      })
+    }
+
+    setCutoff(null)   // show all items for the measurement pass
+
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width ?? 0
+      if (Math.abs(w - measuredW.current) > 2) {
+        measuredW.current = w
+        setCutoff(null)
+        measure()
+      }
+    })
+    ro.observe(ul)
+    measure()
+    return () => ro.disconnect()
+  }, [expanded, rooms.length])
+
+  const showing    = (expanded || cutoff === null) ? rooms : rooms.slice(0, cutoff)
+  const hiddenCnt  = (!expanded && cutoff !== null) ? Math.max(0, rooms.length - cutoff) : 0
+
+  return (
+    <ul ref={listRef} className="pv-room-pills">
+      {showing.map(r => {
+        const spot  = hotspots.find(h => h.id === r)
+        const color = spot?.color || dataColor || '#3dc99a'
+        const txt   = readableTextColor(color)
+        return (
+          <li key={r} data-ri="" className="pv-room-item"
+              style={{ '--room-color': color, color: txt }}>
+            {r}
+          </li>
+        )
+      })}
+
+      {hiddenCnt > 0 && (
+        <li key="__more">
+          <button className="pv-room-more-btn"
+                  onClick={() => setExpanded(true)}
+                  aria-label={`Show ${hiddenCnt} more rooms`}>
+            +{hiddenCnt} more
+          </button>
+        </li>
+      )}
+
+      {expanded && rooms.length > 2 && (
+        <li key="__less">
+          <button className="pv-room-more-btn pv-room-less-btn"
+                  onClick={() => setExpanded(false)}
+                  aria-label="Show fewer rooms">
+            show less
+          </button>
+        </li>
+      )}
+    </ul>
+  )
+}
+
 function Modal({ open, onClose, data, hotspots = [] }) {
   useEffect(() => {
     function onKey(e) {
@@ -34,47 +138,11 @@ function Modal({ open, onClose, data, hotspots = [] }) {
 
                 <div className="pv-room-list">
                   <h3>Also in:</h3>
-                  <ul>
-                    {(data.rooms && data.rooms.length) ? (
-                      data.rooms.map(r => {
-                        // Try to resolve the room id to a hotspot to get its color
-                        const roomHotspot = hotspots.find(h => h.id === r)
-                        const roomColor = roomHotspot?.color || data.color || '#3dc99a'
-
-                        // simple hex luminance check to pick white or dark text
-                        function readableTextColor(col) {
-                          try {
-                            if (!col || typeof col !== 'string') return '#fff'
-                            let c = col.trim()
-                            if (c[0] === '#') c = c.slice(1)
-                            if (c.length === 3) c = c.split('').map(ch => ch+ch).join('')
-                            if (c.length !== 6) return '#fff'
-                            const r255 = parseInt(c.slice(0,2), 16)
-                            const g255 = parseInt(c.slice(2,4), 16)
-                            const b255 = parseInt(c.slice(4,6), 16)
-                            const lum = (0.2126 * r255 + 0.7152 * g255 + 0.0722 * b255) / 255
-                            return lum > 0.6 ? '#111' : '#fff'
-                          } catch (err) {
-                            return '#fff'
-                          }
-                        }
-
-                        const textColor = readableTextColor(roomColor)
-                        return (
-                          <li
-                            key={r}
-                            className="pv-room-item"
-                            style={{ ['--room-color']: roomColor, color: textColor }}
-                            aria-label={`Related room ${r}`}
-                          >
-                            {r}
-                          </li>
-                        )
-                      })
-                    ) : (
-                      ['A1', '3BC', '6LD', 'B2'].map(r => <li key={r} className="pv-room-item">{r}</li>)
-                    )}
-                  </ul>
+                  <RoomPills
+                    rooms={(data.rooms && data.rooms.length) ? data.rooms : ['']}
+                    hotspots={hotspots}
+                    dataColor={data.color}
+                  />
                 </div>
 
             <div className="pv-product-list">
@@ -88,10 +156,9 @@ function Modal({ open, onClose, data, hotspots = [] }) {
                     </li>
                   ))
                 ) : (
-                  ['Product 1', 'Product 2', 'Product 3'].map((n, i) => (
+                  ['None'].map((n, i) => (
                     <li key={i} className="pv-product-item">
-                      <div className="pv-product-name">{n}</div>
-                      <div className="pv-product-meta">Placeholder</div>
+                      <div className="pv-product-meta"></div>
                     </li>
                   ))
                 )}

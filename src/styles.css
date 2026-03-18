@@ -110,6 +110,17 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
 
 .pv-room-list h3,.pv-product-list h3{margin:12px 0 6px;font-size:14px;color:#555}
 .pv-room-list ul,.pv-product-list ul{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
+
+/* Pills container — replaces the old ul when RoomPills is used */
+.pv-room-pills {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .pv-room-item{
   padding:6px 10px;
   border-radius:999px;
@@ -118,6 +129,47 @@ body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background
   /* background uses per-item CSS variable set inline */
   background: linear-gradient(180deg, var(--room-color, #fff), var(--room-color, #f7f7f7));
   color: inherit; /* text color computed inline for readability */
+}
+
+/* "+N more" / "show less" interactive pill */
+.pv-room-more-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1.5px dashed rgba(0, 0, 0, 0.22);
+  background: transparent;
+  color: #555;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.pv-room-more-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.38);
+  color: #111;
+}
+
+.pv-room-more-btn:active {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+/* "show less" is a bit more muted than "+N more" */
+.pv-room-less-btn {
+  font-size: 12px;
+  color: #888;
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+.pv-room-less-btn:hover {
+  color: #444;
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.28);
 }
 .pv-product-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;border:1px solid #f0f0f0;background:#fff;margin-bottom:8px}
 .pv-product-name{font-weight:600;color:#111}
