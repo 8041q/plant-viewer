@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react'
 import ModelViewer from './ModelViewer'
 
-const IMAGE_PATH = 'src/planta.svg'
-const HOTSPOTS_JSON = 'data/hotspots.json'
+const IMAGE_PATH = `${import.meta.env.BASE_URL}planta.svg`
+const HOTSPOTS_JSON = `${import.meta.env.BASE_URL}data/hotspots.json`
 
 function Modal({ open, onClose, data }) {
   useEffect(() => {
