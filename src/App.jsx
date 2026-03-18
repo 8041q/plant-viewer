@@ -186,16 +186,10 @@ export default function App() {
   // Smooth animation / inertia configs and refs
   const SMOOTHING = 0.14
   const INERTIA_MULT = 200
+  const DRAG_SPEED = 3
   const MIN_SCALE = 1
-  const MAX_SCALE_DESKTOP = 3
-  const MAX_SCALE_MOBILE  = 6
+  const MAX_SCALE = 3
   const ZOOM_STEP = 1.35
-  // Detect mobile so we can apply a higher max zoom
-  const isMobileRef = useRef(typeof window !== 'undefined' && window.innerWidth <= 768)
-  // Derived constant — read this everywhere instead of MAX_SCALE directly
-  function getMaxScale() { return isMobileRef.current ? MAX_SCALE_MOBILE : MAX_SCALE_DESKTOP }
-  // Keep a stable alias used in atMaxScale comparison (will re-evaluate on each render)
-  const MAX_SCALE = getMaxScale()
   const targetScaleRef = useRef(scaleRef.current)
   const targetTranslateRef = useRef(translateRef.current)
   const rafRef = useRef(null)
@@ -205,10 +199,7 @@ export default function App() {
   // Used by zoom buttons to centre zoom on last interaction point
   const lastPointerRef = useRef(null)
 
-  // Track whether a meaningful drag happened so hotspot taps aren't swallowed
-  const didDragRef = useRef(false)
-  // Hotspot that was touched on pointerdown (only set for touch/pen, not mouse)
-  const touchedHotspotRef = useRef(null)
+  // ─── Pinch-to-zoom state ─────────────────────────────────────────────────
   // activePointers keeps a Map of pointerId → {x, y} for all active touches
   const activePointersRef = useRef(new Map())
   // Distance between the two touch points at the start of a pinch gesture
@@ -276,7 +267,7 @@ export default function App() {
   function lerp(a, b, t) { return a + (b - a) * t }
 
   function setTargetScaleTranslate(nextScale, nextTranslate) {
-    targetScaleRef.current = Math.max(MIN_SCALE, Math.min(getMaxScale(), nextScale))
+    targetScaleRef.current = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale))
     targetTranslateRef.current = nextTranslate
     startSmoothAnimation()
   }
@@ -354,7 +345,7 @@ export default function App() {
 
         const s = scaleRef.current
         const t = translateRef.current
-        const targetS = Math.max(MIN_SCALE, Math.min(s * zoomFactor, getMaxScale()))
+        const targetS = Math.max(MIN_SCALE, Math.min(s * zoomFactor, MAX_SCALE))
 
         // world point under cursor (in view units)
         const worldX = (cursorUnitsX - t.x) / s
@@ -403,7 +394,7 @@ export default function App() {
 
     const s = scaleRef.current
     const t = translateRef.current
-    const targetS = Math.max(MIN_SCALE, Math.min(s * factor, getMaxScale()))
+    const targetS = Math.max(MIN_SCALE, Math.min(s * factor, MAX_SCALE))
 
     // World point under the cursor (view units)
     const worldX = (cursorUnitsX - t.x) / s
@@ -424,21 +415,10 @@ export default function App() {
 
   function onPointerDown(e) {
     if (!containerRef.current) return
-
-    const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen'
-    const onHotspot = !!(e.target && e.target.closest && e.target.closest('.pv-hotspot-group'))
-
-    if (onHotspot && !isTouch) {
-      // Mouse click on hotspot — let the hotspot's own onClick handle it
-      return
-    }
-
-    // For touch on a hotspot: remember it so we can fire it on pointerup if
-    // the finger didn't move (tap, not drag)
-    touchedHotspotRef.current = (onHotspot && isTouch)
-      ? e.target.closest('.pv-hotspot-group')
-      : null
-    didDragRef.current = false
+    // don't start dragging when user clicked a hotspot (let the hotspot handle the event)
+    try {
+      if (e.target && e.target.closest && e.target.closest('.pv-hotspot-group')) return
+    } catch (err) {}
 
     // Track this pointer
     activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
@@ -486,7 +466,7 @@ export default function App() {
       const [p1, p2] = pointers
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
       const scaleFactor = dist / pinchStartDistRef.current
-      const targetS = Math.max(MIN_SCALE, Math.min(pinchStartScaleRef.current * scaleFactor, getMaxScale()))
+      const targetS = Math.max(MIN_SCALE, Math.min(pinchStartScaleRef.current * scaleFactor, MAX_SCALE))
 
       // Use the midpoint at pinch-start as the zoom anchor (in container units)
       const rect = containerRef.current.getBoundingClientRect()
@@ -518,30 +498,29 @@ export default function App() {
     const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.x
     const dy = e.clientY - dragStartRef.current.y
-    // Divide by current scale so 1 px of finger/mouse movement always moves
-    // the same apparent distance on screen regardless of zoom level.
-    const dxUnits = (dx * viewSize.w) / (rect.width * scaleRef.current)
-    const dyUnits = (dy * viewSize.h) / (rect.height * scaleRef.current)
+    const s = scaleRef.current
+    // SVG transform order is translate-then-scale, so tx/ty live in pre-scale
+    // space. Dividing by s means 1 screen-pixel of drag = 1 screen-pixel of
+    // apparent movement at any zoom level.
+    const dxUnits = (dx * viewSize.w * DRAG_SPEED) / (rect.width * s)
+    const dyUnits = (dy * viewSize.h * DRAG_SPEED) / (rect.height * s)
 
     // compute new translate immediately and write to ref so the RAF
     // animation won't (re)apply an older value.
-    const s = scaleRef.current
     const newX = translateRef.current.x + dxUnits
     const newY = translateRef.current.y + dyUnits
     const clamped = clampTranslate(s, newX, newY)
     translateRef.current = clamped
     setTranslate(clamped)
-    // update velocity estimate (pixels per ms converted to view units per ms)
+    // update velocity — also in pre-scale units/ms so inertia is consistent
     const now = performance.now()
     const dt = Math.max(1, now - (lastMoveRef.current.t || now))
     velocityRef.current = {
-      x: ((e.clientX - lastMoveRef.current.x) * viewSize.w) / (rect.width * scaleRef.current * dt),
-      y: ((e.clientY - lastMoveRef.current.y) * viewSize.h) / (rect.height * scaleRef.current * dt),
+      x: ((e.clientX - lastMoveRef.current.x) * viewSize.w * DRAG_SPEED) / (rect.width * s * dt),
+      y: ((e.clientY - lastMoveRef.current.y) * viewSize.h * DRAG_SPEED) / (rect.height * s * dt),
     }
     lastMoveRef.current = { x: e.clientX, y: e.clientY, t: now }
     dragStartRef.current = { x: e.clientX, y: e.clientY }
-    // Mark as a drag if movement in this frame exceeds a small threshold (8px)
-    if (!didDragRef.current && Math.hypot(dx, dy) > 8) didDragRef.current = true
   }
 
   function onPointerUp(e) {
@@ -560,20 +539,6 @@ export default function App() {
     }
 
     if (remaining === 0) {
-      // Touch-tap on a hotspot (finger didn't drag) — activate it
-      if (touchedHotspotRef.current && !didDragRef.current) {
-        const hotspotId = touchedHotspotRef.current.getAttribute('data-hotspot-id')
-        const h = hotspots.find(hs => hs.id === hotspotId)
-        if (h) onActivateHotspot(h)
-        touchedHotspotRef.current = null
-        didDragRef.current = false
-        setDragging(false)
-        draggingRef.current = false
-        return
-      }
-      touchedHotspotRef.current = null
-      didDragRef.current = false
-
       if (!draggingRef.current) return
       setDragging(false)
       draggingRef.current = false
