@@ -176,10 +176,12 @@ export default function App() {
   const [selected, setSelected] = useState(null)
   const [hoveredHotspotId, setHoveredHotspotId] = useState(null)
   const containerRef = useRef(null)
+  // Direct ref to the SVG <g> that holds translate+scale — we write its
+  // transform attribute directly during gestures to avoid React re-renders
+  const transformGRef = useRef(null)
   const [scale, setScale] = useState(1)
   const [translate, setTranslate] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
-  const [pinching, setPinching] = useState(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
   const draggingRef = useRef(false)
   const scaleRef = useRef(scale)
@@ -211,8 +213,6 @@ export default function App() {
   const pinchStartMidRef = useRef(null)
   // Translate at the moment the pinch gesture started
   const pinchStartTranslateRef = useRef(null)
-  // True whenever a drag or pinch is active — hotspots suppress pointer events during gestures
-  const gestureActiveRef = useRef(false)
 
   // viewSize: width and height in viewBox units. default to 100x100 for safety.
   const [viewSize, setViewSize] = useState({ w: 100, h: 100 })
@@ -258,16 +258,35 @@ export default function App() {
     return () => { mounted = false }
   }, [])
 
-  useEffect(() => {
-    scaleRef.current = scale
-  }, [scale])
-
-  useEffect(() => {
-    translateRef.current = translate
-  }, [translate])
+  // scaleRef and translateRef are kept in sync by applyTransform() and commitTransformToState()
 
   // Smooth animator helpers
   function lerp(a, b, t) { return a + (b - a) * t }
+
+  // Write the SVG transform directly to the DOM — zero React overhead.
+  // Also keeps scaleRef/translateRef in sync for all downstream math.
+  function applyTransform(s, tx, ty) {
+    scaleRef.current = s
+    translateRef.current = { x: tx, y: ty }
+    if (transformGRef.current) {
+      transformGRef.current.setAttribute('transform', `translate(${tx},${ty}) scale(${s})`)
+    }
+    // Update hotspot counter-scale transforms so they stay screen-size
+    if (transformGRef.current) {
+      const hs = transformGRef.current.querySelectorAll('.pv-hotspot-group')
+      hs.forEach(g => {
+        const base = g.getAttribute('data-base-transform')
+        if (base) g.setAttribute('transform', `${base} scale(${1 / s})`)
+      })
+    }
+  }
+
+  // Sync React scale/translate state — only needed for zoom button disabled state
+  // and for the smooth animator which runs outside pointer events.
+  function commitTransformToState() {
+    setScale(scaleRef.current)
+    setTranslate(translateRef.current)
+  }
 
   function setTargetScaleTranslate(nextScale, nextTranslate) {
     targetScaleRef.current = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale))
@@ -279,35 +298,25 @@ export default function App() {
     if (rafRef.current) return
     let last = performance.now()
     function tick(now) {
-      // If user started dragging, stop the smooth animator so pointer
-      // interactions take immediate effect.
-      if (draggingRef.current) {
-        rafRef.current = null
-        return
-      }
+      if (draggingRef.current) { rafRef.current = null; return }
       const dt = Math.min((now - last) / 16.6667, 4)
       last = now
-
       const t = 1 - Math.pow(1 - SMOOTHING, dt)
 
-      const curS = scaleRef.current
+      const newS  = lerp(scaleRef.current,       targetScaleRef.current,         t)
+      const newTx = lerp(translateRef.current.x, targetTranslateRef.current.x,   t)
+      const newTy = lerp(translateRef.current.y, targetTranslateRef.current.y,   t)
+
+      applyTransform(newS, newTx, newTy)
+
       const tgtS = targetScaleRef.current
-      const newS = lerp(curS, tgtS, t)
-
-      const curT = translateRef.current
       const tgtT = targetTranslateRef.current
-      const newTx = lerp(curT.x, tgtT.x, t)
-      const newTy = lerp(curT.y, tgtT.y, t)
+      const done = Math.abs(newS - tgtS) < 0.0005 &&
+                   Math.hypot(newTx - tgtT.x, newTy - tgtT.y) < 0.5
 
-      scaleRef.current = newS
-      translateRef.current = { x: newTx, y: newTy }
-      setScale(newS)
-      setTranslate(translateRef.current)
-
-      const closeEnoughScale = Math.abs(newS - tgtS) < 0.0005
-      const closeEnoughTranslate = Math.hypot(newTx - tgtT.x, newTy - tgtT.y) < 0.5
-
-      if (closeEnoughScale && closeEnoughTranslate) {
+      if (done) {
+        applyTransform(tgtS, tgtT.x, tgtT.y)
+        commitTransformToState()   // sync React state once at the end
         rafRef.current = null
         return
       }
@@ -421,112 +430,82 @@ export default function App() {
 
     const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen'
     const onHotspot = !!(e.target?.closest?.('.pv-hotspot-group'))
+    if (onHotspot && !isTouch) return   // let mouse clicks reach the hotspot
 
-    // Mouse on hotspot: let the hotspot's onClick handle it, don't drag
-    if (onHotspot && !isTouch) return
-
-    // Always capture so move/up events keep arriving even when sliding over hotspots
     try { containerRef.current.setPointerCapture(e.pointerId) } catch (_) {}
 
-    // Track this pointer
     activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    gestureActiveRef.current = true
-
     const pointers = Array.from(activePointersRef.current.values())
 
+    // Kill any running smooth animation the moment a finger touches down
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+
     if (pointers.length === 2) {
-      // ── Pinch gesture starting ──
       draggingRef.current = false
       setDragging(false)
-      setPinching(true)
-      try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (_) {}
-
       const [p1, p2] = pointers
-      pinchStartDistRef.current = Math.hypot(p2.x - p1.x, p2.y - p1.y)
-      pinchStartScaleRef.current = scaleRef.current
+      pinchStartDistRef.current    = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+      pinchStartScaleRef.current   = scaleRef.current
       pinchStartTranslateRef.current = { ...translateRef.current }
-      pinchStartMidRef.current = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+      pinchStartMidRef.current     = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
       return
     }
 
-    // ── Single-pointer drag ──
-    setDragging(true)
     draggingRef.current = true
-    try { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null } } catch (_) {}
-    dragStartRef.current = { x: e.clientX, y: e.clientY }
-    lastMoveRef.current = { x: e.clientX, y: e.clientY, t: performance.now() }
-    velocityRef.current = { x: 0, y: 0 }
+    setDragging(true)
+    dragStartRef.current  = { x: e.clientX, y: e.clientY }
+    lastMoveRef.current   = { x: e.clientX, y: e.clientY, t: performance.now() }
+    velocityRef.current   = { x: 0, y: 0 }
   }
 
   function onPointerMove(e) {
     lastPointerRef.current = { x: e.clientX, y: e.clientY }
-
-    // Only track pointers we know about (i.e. ones that went through onPointerDown)
     if (!activePointersRef.current.has(e.pointerId)) return
     activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
     const entries = Array.from(activePointersRef.current.entries())
 
-    // ── Pinch gesture in progress ──
+    // ── Pinch ──
     if (entries.length === 2 && pinchStartDistRef.current !== null) {
       const [[, p1], [, p2]] = entries
-      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+      const dist        = Math.hypot(p2.x - p1.x, p2.y - p1.y)
       const scaleFactor = dist / pinchStartDistRef.current
-      const targetS = Math.max(MIN_SCALE, Math.min(pinchStartScaleRef.current * scaleFactor, MAX_SCALE))
+      const targetS     = Math.max(MIN_SCALE, Math.min(pinchStartScaleRef.current * scaleFactor, MAX_SCALE))
 
-      const rect = containerRef.current.getBoundingClientRect()
-
-      // Live midpoint — content pans AND zooms as fingers move together
-      const liveMidX = ((p1.x + p2.x) / 2) - rect.left
-      const liveMidY = ((p1.y + p2.y) / 2) - rect.top
-      const liveMidUX = (liveMidX * viewSize.w) / rect.width
-      const liveMidUY = (liveMidY * viewSize.h) / rect.height
-
-      // World point that was under the pinch-start midpoint (fixed anchor in content space)
+      const rect     = containerRef.current.getBoundingClientRect()
+      const liveMidUX = (((p1.x + p2.x) / 2) - rect.left) * viewSize.w / rect.width
+      const liveMidUY = (((p1.y + p2.y) / 2) - rect.top)  * viewSize.h / rect.height
       const s0 = pinchStartScaleRef.current
       const t0 = pinchStartTranslateRef.current
       const startMidUX = ((pinchStartMidRef.current.x - rect.left) * viewSize.w) / rect.width
-      const startMidUY = ((pinchStartMidRef.current.y - rect.top) * viewSize.h) / rect.height
+      const startMidUY = ((pinchStartMidRef.current.y - rect.top)  * viewSize.h) / rect.height
       const worldX = (startMidUX - t0.x) / s0
       const worldY = (startMidUY - t0.y) / s0
-
-      // Place that world point under the live midpoint
-      const targetTx = liveMidUX - worldX * targetS
-      const targetTy = liveMidUY - worldY * targetS
-
-      const clamped = clampTranslate(targetS, targetTx, targetTy)
-      scaleRef.current = targetS
-      translateRef.current = clamped
-      setScale(targetS)
-      setTranslate(clamped)
+      const clamped = clampTranslate(targetS, liveMidUX - worldX * targetS, liveMidUY - worldY * targetS)
+      applyTransform(targetS, clamped.x, clamped.y)
       return
     }
 
-    // ── Single-pointer drag ──
-    // Only the first (and only) tracked pointer drives the drag
+    // ── Single-finger drag ──
     if (!draggingRef.current || !containerRef.current) return
     if (entries.length !== 1 || entries[0][0] !== e.pointerId) return
 
-    const rect = containerRef.current.getBoundingClientRect()
-    const dx = e.clientX - dragStartRef.current.x
-    const dy = e.clientY - dragStartRef.current.y
-    const s = scaleRef.current
-    const dxUnits = (dx * viewSize.w * DRAG_SPEED) / (rect.width * s)
-    const dyUnits = (dy * viewSize.h * DRAG_SPEED) / (rect.height * s)
-
-    const newX = translateRef.current.x + dxUnits
-    const newY = translateRef.current.y + dyUnits
-    const clamped = clampTranslate(s, newX, newY)
-    translateRef.current = clamped
-    setTranslate(clamped)
+    const rect   = containerRef.current.getBoundingClientRect()
+    const dx     = e.clientX - dragStartRef.current.x
+    const dy     = e.clientY - dragStartRef.current.y
+    const s      = scaleRef.current
+    const dxU    = (dx * viewSize.w * DRAG_SPEED) / (rect.width  * s)
+    const dyU    = (dy * viewSize.h * DRAG_SPEED) / (rect.height * s)
+    const clamped = clampTranslate(s, translateRef.current.x + dxU, translateRef.current.y + dyU)
+    applyTransform(s, clamped.x, clamped.y)
 
     const now = performance.now()
-    const dt = Math.max(1, now - (lastMoveRef.current.t || now))
+    const dt  = Math.max(1, now - (lastMoveRef.current.t || now))
     velocityRef.current = {
-      x: ((e.clientX - lastMoveRef.current.x) * viewSize.w * DRAG_SPEED) / (rect.width * s * dt),
+      x: ((e.clientX - lastMoveRef.current.x) * viewSize.w * DRAG_SPEED) / (rect.width  * s * dt),
       y: ((e.clientY - lastMoveRef.current.y) * viewSize.h * DRAG_SPEED) / (rect.height * s * dt),
     }
-    lastMoveRef.current = { x: e.clientX, y: e.clientY, t: now }
+    lastMoveRef.current  = { x: e.clientX, y: e.clientY, t: now }
     dragStartRef.current = { x: e.clientX, y: e.clientY }
   }
 
@@ -537,38 +516,35 @@ export default function App() {
     const remaining = activePointersRef.current.size
 
     if (remaining < 2) {
-      // Pinch ended — clear pinch state
-      pinchStartDistRef.current = null
-      pinchStartScaleRef.current = null
-      pinchStartMidRef.current = null
+      pinchStartDistRef.current      = null
+      pinchStartScaleRef.current     = null
+      pinchStartMidRef.current       = null
       pinchStartTranslateRef.current = null
     }
 
     if (remaining === 0) {
-      gestureActiveRef.current = false
-      setPinching(false)
-      if (!draggingRef.current) return
       setDragging(false)
       draggingRef.current = false
-      const v = velocityRef.current
+      commitTransformToState()   // sync React state once so button states update
+
+      const v     = velocityRef.current
       const speed = Math.hypot(v.x, v.y)
       if (speed > 0.002) {
-        const inertiaTarget = {
-          x: translateRef.current.x + v.x * INERTIA_MULT,
-          y: translateRef.current.y + v.y * INERTIA_MULT,
-        }
-        const clamped = clampTranslate(scaleRef.current, inertiaTarget.x, inertiaTarget.y)
+        const clamped = clampTranslate(
+          scaleRef.current,
+          translateRef.current.x + v.x * INERTIA_MULT,
+          translateRef.current.y + v.y * INERTIA_MULT,
+        )
         setTargetScaleTranslate(scaleRef.current, clamped)
       }
     } else if (remaining === 1) {
-      // One finger lifted during pinch — resume single-pointer drag
       const [[id, ptr]] = Array.from(activePointersRef.current.entries())
       try { containerRef.current?.setPointerCapture(id) } catch (_) {}
+      draggingRef.current  = true
       setDragging(true)
-      draggingRef.current = true
       dragStartRef.current = { x: ptr.x, y: ptr.y }
-      lastMoveRef.current = { x: ptr.x, y: ptr.y, t: performance.now() }
-      velocityRef.current = { x: 0, y: 0 }
+      lastMoveRef.current  = { x: ptr.x, y: ptr.y, t: performance.now() }
+      velocityRef.current  = { x: 0, y: 0 }
     }
   }
 
@@ -633,24 +609,19 @@ export default function App() {
   }
 
   function renderHotspot(h) {
+    const baseTransform = `translate(${h.x * viewSize.w / 100},${h.y * viewSize.h / 100})`
     return (
       <g
         key={h.id}
         data-hotspot-id={h.id}
-        transform={`translate(${h.x * viewSize.w / 100}, ${h.y * viewSize.h / 100}) scale(${1 / scale})`}
+        data-base-transform={baseTransform}
+        transform={`${baseTransform} scale(${1 / scale})`}
         className="pv-hotspot-group"
-        style={{
-          '--hotspot-color': h.color || '#3dc99a',
-          // During any drag/pinch, make hotspots invisible to pointer events so
-          // fingers sliding over them can't trigger enter/leave/capture and cause jitter
-          pointerEvents: (dragging || pinching) ? 'none' : 'auto',
-        }}
+        style={{ '--hotspot-color': h.color || '#3dc99a' }}
         onPointerEnter={handleHotspotEnter}
         onPointerLeave={handleHotspotLeave}
         onFocus={handleHotspotEnter}
         onBlur={handleHotspotLeave}
-        // Only preventDefault for mouse clicks — doing it on touch cancels pointer
-        // capture on the container and breaks drag tracking
         onMouseDown={e => { if (e.pointerType !== 'touch' && e.pointerType !== 'pen') e.preventDefault() }}
         tabIndex={0}
       >
@@ -713,7 +684,7 @@ export default function App() {
         onPointerCancel={onPointerUp}
       >
         <svg className="pv-overlay" viewBox={`0 0 ${viewSize.w} ${viewSize.h}`} preserveAspectRatio="xMidYMid meet">
-          <g transform={`translate(${translate.x}, ${translate.y}) scale(${scale})`}>
+          <g ref={transformGRef} transform={`translate(${translate.x}, ${translate.y}) scale(${scale})`}>
             <image href={IMAGE_PATH} x={0} y={0} width={viewSize.w} height={viewSize.h} preserveAspectRatio="xMidYMid meet" />
 
             {
