@@ -2,7 +2,7 @@
   "templates": {
     "consulta-standard": {
       "color": "#2a9d8f",
-      "image": "",
+      "image": "x09.png",
       "rooms": [
         "gab-consulta-22",
         "gab-consulta-21",
@@ -49,37 +49,24 @@
       ],
       "products": [
         {
-          "name": "MARQUESA",
-          "sku": "MRQ-2100",
-          "description": "Marquesa de observação hidráulica com regulação de altura e extensão de leito.",
+          "name": "MARQUESA 1850X620X580MM",
+          "sku": "",
+          "description": "",
           "category": "Mobiliário Clínico",
           "image": "",
           "specs": {
-            "dimensions": "2100 × 650 × 500 mm",
-            "minHeight": "500 mm",
-            "maxHeight": "900 mm",
-            "bedExtension": "200 mm (2100–2300 mm)",
-            "weightingSystem": "",
-            "weight": "45 kg",
-            "capacity": "250 kg",
-            "material": "Steel frame with antibacterial coating",
-            "powerSupply": "230V AC / Battery backup"
+            "dimensions": "1850 × 620 × 580 mm"
           }
         },
         {
-          "name": "NEGATOSCÓPIO",
-          "sku": "NGT-LED-01",
-          "description": "Negatoscópio LED de parede para visualização de radiografias.",
-          "category": "Diagnóstico",
+          "name": "MARQUESA OBS S/ORIFICIO EPOXY PINTADA",
+          "sku": "",
+          "description": "Sem orifício, epóxi pintada. Furação: 185 × 65 × 65 mm.",
+          "category": "Mobiliário Clínico",
           "image": "",
           "specs": {
-            "dimensions": "420 × 520 × 25 mm",
-            "minHeight": "",
-            "maxHeight": "",
-            "weight": "3.2 kg",
-            "capacity": "",
-            "material": "Aluminium frame, LED panel",
-            "powerSupply": "230V AC"
+            "minHeight": "650 mm",
+            "material": "Epoxy pintada"
           }
         }
       ]
@@ -101,7 +88,7 @@
       "x": 26,
       "y": 5,
       "template": "consulta-standard",
-      "type": "Consultation Room",
+      "type": "Pneumologia",
       "info": "Gabinete de Consulta 22 — 12.35m²"
     },
     {
@@ -110,7 +97,7 @@
       "x": 32,
       "y": 5,
       "template": "consulta-standard",
-      "type": "Consultation Room",
+      "type": "Prova de Esforço / Holter / Mapa / ECG",
       "info": "Gabinete de Consulta 21 — 12.35m²"
     },
     {
@@ -119,7 +106,7 @@
       "x": 38,
       "y": 5,
       "template": "consulta-standard",
-      "type": "Consultation Room",
+      "type": "Cardiologia",
       "info": "Gabinete de Consulta 20 — 12.35m²"
     },
     {
@@ -128,7 +115,7 @@
       "x": 44,
       "y": 5,
       "template": "consulta-standard",
-      "type": "Consultation Room",
+      "type": "Cardiologia",
       "info": "Gabinete de Consulta 19 — 12.35m²"
     },
     {
@@ -155,7 +142,7 @@
       "x": 73,
       "y": 5,
       "template": "consulta-standard",
-      "type": "Consultation Room",
+      "type": "Pediatria",
       "info": "Gabinete de Consulta 26 — 12.35m²"
     },
     {
@@ -182,7 +169,7 @@
       "x": 62,
       "y": 22,
       "template": "consulta-standard",
-      "type": "Consultation Room",
+      "type": "Pré-consulta Oftalmologia",
       "info": "Gabinete de Consulta 28 — 12.17m²"
     },
     {
@@ -191,15 +178,123 @@
       "x": 68,
       "y": 22,
       "template": "consulta-standard",
-      "type": "Consultation Room",
+      "type": "Pré-consulta Oftalmologia",
       "info": "Gabinete de Consulta 29 — 12.27m²"
+    },
+    {
+      "id": "C038",
+      "title": "Gab. Consulta 38",
+      "x": 73,
+      "y": 44,
+      "template": "consulta-standard",
+      "type": "Dermatologia",
+      "info": "Gabinete de Consulta 38 — Dermatologia"
+    },
+    {
+      "id": "ECO1",
+      "title": "Ecografia 1",
+      "x": 39,
+      "y": 62,
+      "template": "consulta-standard",
+      "type": "Ecografia",
+      "info": "Ecografia 1 — Imagiologia"
+    },
+    {
+      "id": "C005",
+      "title": "Gab. Consulta 05",
+      "x": 21,
+      "y": 45,
+      "template": "consulta-standard",
+      "type": "Endocrinologia / Imunoalergologia / Reumatologia",
+      "info": "Gabinete de Consulta 05 — Endocrinologia / Imunoalergologia / Reumatologia"
+    },
+    {
+      "id": "C012",
+      "title": "Gab. Consulta 12",
+      "x": 10,
+      "y": 32,
+      "template": "consulta-standard",
+      "type": "Infecciologia",
+      "info": "Gabinete de Consulta 12 — Infecciologia"
+    },
+    {
+      "id": "C036",
+      "title": "Gab. Consulta 36",
+      "x": 62,
+      "y": 44,
+      "template": "consulta-standard",
+      "type": "MGF / MI",
+      "info": "Gabinete de Consulta 36 — MGF"
+    },
+    {
+      "id": "C037",
+      "title": "Gab. Consulta 37",
+      "x": 68,
+      "y": 44,
+      "template": "consulta-standard",
+      "type": "MGF / MI",
+      "info": "Gabinete de Consulta 37 — MI"
+    },
+    {
+      "id": "C031",
+      "title": "Gab. Consulta 31",
+      "x": 79,
+      "y": 22,
+      "template": "consulta-standard",
+      "type": "ORL-Especiais",
+      "info": "Gabinete de Consulta 31 — ORL-Especiais"
+    },
+    {
+      "id": "C032",
+      "title": "Gab. Consulta 32",
+      "x": 62,
+      "y": 30,
+      "template": "consulta-standard",
+      "type": "Ortopedia",
+      "info": "Gabinete de Consulta 32 — Ortopedia"
+    },
+    {
+      "id": "C033",
+      "title": "Gab. Consulta 33",
+      "x": 68,
+      "y": 30,
+      "template": "consulta-standard",
+      "type": "Ortopedia",
+      "info": "Gabinete de Consulta 33 — Ortopedia"
+    },
+    {
+      "id": "C034",
+      "title": "Gab. Consulta 34",
+      "x": 74,
+      "y": 30,
+      "template": "consulta-standard",
+      "type": "Ortopedia / Neurocirurgia",
+      "info": "Gabinete de Consulta 34 — Ortopedia / Neurocirurgia"
+    },
+    {
+      "id": "C001",
+      "title": "Gab. Consulta 01",
+      "x": 44,
+      "y": 45,
+      "template": "consulta-standard",
+      "type": "Psicologia",
+      "info": "Gabinete de Consulta 01 — Psicologia"
+    },
+    {
+      "id": "C030",
+      "title": "Gab. Consulta 30",
+      "x": 74,
+      "y": 22,
+      "template": "consulta-standard",
+      "type": "Terapia da Fala",
+      "info": "Gabinete de Consulta 30 — Terapia da Fala"
     },
     {
       "id": "test-1",
       "title": "Sala Tratamentos",
       "x": 80,
-      "y": 45,
-      "color": "#adb5bd",
+      "y": 44,
+      "color": "#3ca6c7",
       "image": "z7z.jpg",
       "model": "https://8041q.github.io/modelviewerDEMO/?hideUI=true#0",
       "info": "teste — model viewer.",
