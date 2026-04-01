@@ -27,6 +27,7 @@ coverage/
 *.ntvs*
 *.njsproj
 *.sln
+.github/
 
 # OS
 .DS_Store

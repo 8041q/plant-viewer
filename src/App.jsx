@@ -108,7 +108,71 @@ function RoomPills({ rooms = [], hotspots = [], dataColor }) {
   )
 }
 
+const SPEC_LABELS = {
+  dimensions:      'Dimensions',
+  minHeight:       'Min Height',
+  maxHeight:       'Max Height',
+  bedExtension:    'Bed Extension',
+  weightingSystem: 'Weighting System',
+  weight:          'Weight',
+  capacity:        'Capacity',
+  material:        'Material',
+  powerSupply:     'Power Supply',
+}
+const WIDE_SPECS = new Set(['bedExtension', 'weightingSystem', 'material', 'powerSupply'])
+
+function PackageIcon({ size = 48, className = '' }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+  )
+}
+
+function ProductCard({ product }) {
+  const specs = product.specs || {}
+  const specEntries = Object.entries(specs).filter(([, v]) => v)
+  return (
+    <div className="pv-product-card">
+      <div className="pv-product-card-top">
+        <div className="pv-product-thumb">
+          {product.image ? (
+            <img src={product.image} alt={product.name} />
+          ) : (
+            <PackageIcon size={40} className="pv-product-thumb-icon" />
+          )}
+        </div>
+        <div className="pv-product-card-info">
+          <div className="pv-product-card-header">
+            <span className="pv-product-name">{product.name}</span>
+            {product.sku && <span className="pv-product-sku">{product.sku}</span>}
+          </div>
+          {product.description && <p className="pv-product-desc">{product.description}</p>}
+          {product.category && <span className="pv-product-category">{product.category}</span>}
+        </div>
+      </div>
+
+      {specEntries.length > 0 && (
+        <div className="pv-product-specs">
+          <h4 className="pv-specs-title">TECHNICAL SPECIFICATIONS</h4>
+          <div className="pv-specs-grid">
+            {specEntries.map(([key, val]) => (
+              <div key={key} className={`pv-spec-row${WIDE_SPECS.has(key) ? ' pv-spec-wide' : ''}`}>
+                <span className="pv-spec-label">{SPEC_LABELS[key] || key}</span>
+                <span className="pv-spec-value">{val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Modal({ open, onClose, data, hotspots = [] }) {
+  const [viewMode, setViewMode] = useState('2d')
+
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') onClose()
@@ -117,52 +181,91 @@ function Modal({ open, onClose, data, hotspots = [] }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  // Reset view mode when opening a new hotspot
+  useEffect(() => {
+    if (open) setViewMode('2d')
+  }, [open, data?.id])
+
   if (!open) return null
+
+  const hasImage = !!(data.image)
+  const hasModel = !!(data.model)
+  const roomType = data.type || ''
+  const products = data.products || []
+  const rooms    = data.rooms || []
+
   return (
     <div className="pv-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div className="pv-modal" onClick={e => e.stopPropagation()}>
-        <button className="pv-modal-close" onClick={onClose} aria-label="Close">×</button>
-        <h2 className="pv-modal-title">{data.title}</h2>
-        <div className="pv-modal-body">
-          {data.model ? (
-            <ModelViewer src={data.model} alt={data.title || 'plant model'} />
-          ) : (
-            <img src={data.image || IMAGE_PATH} alt={data.title || 'plant'} />
-          )}
 
-          <div className="pv-info">
-            <div className="pv-main-info">
-              <p><strong>ID:</strong> {data.id}</p>
-              <p><strong>Info:</strong> {data.info}</p>
+        {/* ── Gradient header ── */}
+        <div className="pv-modal-header">
+          <div className="pv-modal-header-left">
+            <div className="pv-modal-title-row">
+              <h2 className="pv-modal-title">{data.title}</h2>
+              {roomType && <span className="pv-modal-type">{roomType}</span>}
+            </div>
+            <span className="pv-modal-subtitle">{data.id}</span>
+          </div>
+          <button className="pv-modal-close" onClick={onClose} aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg>
+          </button>
+        </div>
+
+        {/* ── Two-column body ── */}
+        <div className="pv-modal-body">
+
+          {/* Left column — image / 3D viewer */}
+          <div className="pv-modal-left">
+            <div className="pv-view-toggle">
+              <span className="pv-view-toggle-label">View Mode</span>
+              <div className="pv-view-toggle-btns">
+                <button className={`pv-toggle-btn${viewMode === '2d' ? ' active' : ''}`} onClick={() => setViewMode('2d')}>2D Plan</button>
+                <button className={`pv-toggle-btn${viewMode === '3d' ? ' active' : ''}`} onClick={() => setViewMode('3d')}>3D Model</button>
+              </div>
             </div>
 
-                <div className="pv-room-list">
-                  <h3>Also in:</h3>
-                  <RoomPills
-                    rooms={(data.rooms && data.rooms.length) ? data.rooms : ['']}
-                    hotspots={hotspots}
-                    dataColor={data.color}
-                  />
+            <div className="pv-viewer-container">
+              {viewMode === '2d' ? (
+                <img src={data.image || IMAGE_PATH} alt={data.title || 'floor plan'} className="pv-viewer-img" />
+              ) : hasModel ? (
+                <ModelViewer src={data.model} alt={data.title || '3D model'} />
+              ) : (
+                <div className="pv-viewer-placeholder">
+                  <PackageIcon size={56} className="pv-placeholder-icon" />
+                  <span className="pv-placeholder-title">3D Model Viewer</span>
+                  <span className="pv-placeholder-sub">Coming soon</span>
                 </div>
+              )}
+            </div>
+          </div>
 
-            <div className="pv-product-list">
-              <h3>Included</h3>
-              <ul>
-                {(data.products && data.products.length) ? (
-                  data.products.map((p, i) => (
-                    <li key={p.id || i} className="pv-product-item">
-                      <div className="pv-product-name">{p.name || 'Product Name'}</div>
-                      <div className="pv-product-meta">{p.variant || p.sku || 'Placeholder'}</div>
-                    </li>
-                  ))
-                ) : (
-                  ['None'].map((n, i) => (
-                    <li key={i} className="pv-product-item">
-                      <div className="pv-product-meta"></div>
-                    </li>
-                  ))
-                )}
-              </ul>
+          {/* Right column — info, rooms, products */}
+          <div className="pv-modal-right">
+
+            {rooms.length > 0 && (
+              <div className="pv-rooms-section">
+                <span className="pv-section-label">ALSO IN:</span>
+                <RoomPills rooms={rooms} hotspots={hotspots} dataColor={data.color} />
+              </div>
+            )}
+
+            <div className="pv-info-bar">
+              <p className="pv-info-text">{data.info}</p>
+            </div>
+
+            <div className="pv-products-section">
+              <span className="pv-section-label">INCLUDED PRODUCTS</span>
+              {products.length > 0 ? (
+                <div className="pv-products-list">
+                  {products.map((p, i) => <ProductCard key={p.sku || i} product={p} />)}
+                </div>
+              ) : (
+                <div className="pv-products-empty">
+                  <PackageIcon size={32} className="pv-empty-icon" />
+                  <span>No products assigned</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -218,7 +321,21 @@ export default function App() {
   const [viewSize, setViewSize] = useState({ w: 100, h: 100 })
 
   useEffect(() => {
-    fetch(HOTSPOTS_JSON).then(r => r.json()).then(setHotspots).catch(() => setHotspots([]))
+    fetch(HOTSPOTS_JSON)
+      .then(r => r.json())
+      .then(data => {
+        // Support new { templates, hotspots } format and legacy flat array
+        const templates = data.templates || {}
+        const raw = Array.isArray(data) ? data : (data.hotspots || [])
+        // Resolve templates: merge template fields under hotspot (hotspot wins)
+        const resolved = raw.map(h => {
+          if (!h.template || !templates[h.template]) return h
+          const tpl = templates[h.template]
+          return { ...tpl, ...h }
+        })
+        setHotspots(resolved)
+      })
+      .catch(() => setHotspots([]))
   }, [])
 
   // Fetch the SVG file and parse viewBox or width/height to compute aspect ratio
