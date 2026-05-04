@@ -742,8 +742,6 @@ export default function App() {
         onMouseDown={e => { if (e.pointerType !== 'touch' && e.pointerType !== 'pen') e.preventDefault() }}
         tabIndex={0}
       >
-        <title>{h.title}</title>
-
         <rect
           className="pv-pill"
           x={-1.8} y={-1.3}
