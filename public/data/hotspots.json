@@ -296,7 +296,7 @@
       "y": 44,
       "color": "#3ca6c7",
       "image": "z7z.jpg",
-      "model": "https://8041q.github.io/modelviewerDEMO/?hideUI=true#0",
+      "model": "https://8041q.github.io/modelviewerDEMO/?hideUI=false#0",
       "info": "teste — model viewer.",
       "type": "Treatment Room",
       "rooms": [],
