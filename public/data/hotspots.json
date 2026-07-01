@@ -182,15 +182,6 @@
       "info": "Gabinete de Consulta 29 — 12.27m²"
     },
     {
-      "id": "C038",
-      "title": "Gab. Consulta 38",
-      "x": 73,
-      "y": 44,
-      "template": "consulta-standard",
-      "type": "Dermatologia",
-      "info": "Gabinete de Consulta 38 — Dermatologia"
-    },
-    {
       "id": "ECO1",
       "title": "Ecografia 1",
       "x": 39,
@@ -288,6 +279,17 @@
       "template": "consulta-standard",
       "type": "Terapia da Fala",
       "info": "Gabinete de Consulta 30 — Terapia da Fala"
+    },
+    {
+      "id": "C038",
+      "title": "Gab. Consulta 38",
+      "x": 73,
+      "y": 44,
+      "color": "#3ca6c7",
+      "template": "consulta-standard",
+      "type": "Dermatologia",
+      "info": "Gabinete de Consulta 38 — Dermatologia",
+      "model": "https://cdn.soft8soft.com/AROAJSY2GOEHMOFUVPIOE:171664085d/%E6%B5%8B%E8%AF%95/%E6%B5%8B%E8%AF%95.html"
     },
     {
       "id": "test-1",
